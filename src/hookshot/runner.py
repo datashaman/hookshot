@@ -7,6 +7,8 @@ import re
 import subprocess
 from typing import TYPE_CHECKING
 
+from .reactions import add_reaction, remove_reaction
+
 if TYPE_CHECKING:
     from .state import StateStore
 
@@ -115,6 +117,7 @@ def run_command(
     *,
     dry_run: bool = False,
     state: StateStore | None = None,
+    reactions: dict | None = None,
 ) -> bool:
     """Expand templates in a command config and execute it.
 
@@ -154,6 +157,12 @@ def run_command(
         return True
 
     log.info("  Executing: %s", command)
+
+    # Add "working" reaction before execution
+    working_reaction = reactions.get("working") if reactions else None
+    if working_reaction:
+        add_reaction(payload, working_reaction)
+
     try:
         result = subprocess.run(
             command,
@@ -169,6 +178,7 @@ def run_command(
             log.warning("  stderr: %s", result.stderr.rstrip())
         if result.returncode != 0:
             log.error("  Command failed (exit code %d): %s", result.returncode, command)
+            _finish_reactions(payload, reactions, success=False)
             return True
 
         # Store/clear only on success (exit code 0)
@@ -184,13 +194,35 @@ def run_command(
             clear_keys = cmd_config.get("clear", [])
             log.error("  State clear failed for keys %s", clear_keys)
 
+        _finish_reactions(payload, reactions, success=True)
         return True
     except subprocess.TimeoutExpired:
         log.error("  Command timed out after 300s: %s", command)
+        _finish_reactions(payload, reactions, success=False)
         return False
     except Exception as e:
         log.error("  Command failed: %s", e)
+        _finish_reactions(payload, reactions, success=False)
         return False
+
+
+def _finish_reactions(
+    payload: dict,
+    reactions: dict | None,
+    *,
+    success: bool,
+) -> None:
+    """Remove the working reaction and add the done/failed reaction."""
+    if not reactions:
+        return
+
+    working = reactions.get("working")
+    if working:
+        remove_reaction(payload, working)
+
+    final = reactions.get("done") if success else reactions.get("failed")
+    if final:
+        add_reaction(payload, final)
 
 
 def _process_store(

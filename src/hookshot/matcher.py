@@ -20,6 +20,7 @@ def match_and_run(
     *,
     dry_run: bool = False,
     state: StateStore | None = None,
+    reactions: dict | None = None,
 ) -> int:
     """Match a GitHub event against configured hooks and run matching commands.
 
@@ -46,7 +47,7 @@ def match_and_run(
             log.info("Matched hook: %s → %d command(s)", hook_key, len(commands))
             for i, cmd in enumerate(commands, 1):
                 log.info("  Running command %d/%d: %s", i, len(commands), cmd.get("command", "?"))
-                if run_command(cmd, payload, dry_run=dry_run, state=state):
+                if run_command(cmd, payload, dry_run=dry_run, state=state, reactions=reactions):
                     executed += 1
 
     if not matched:

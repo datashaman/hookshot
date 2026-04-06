@@ -4,6 +4,8 @@ import os
 import re
 from pathlib import Path
 
+from .reactions import VALID_REACTIONS
+
 import platformdirs
 import yaml
 
@@ -133,5 +135,21 @@ def validate_config(config: dict) -> list[str]:
                 clear = cmd["clear"]
                 if not isinstance(clear, list):
                     errors.append(f"hooks.{event}[{i}].clear: must be a list")
+
+    # Validate reactions
+    reactions = config.get("reactions")
+    if reactions is not None:
+        if not isinstance(reactions, dict):
+            errors.append("'reactions' must be a mapping")
+        else:
+            valid_keys = {"working", "done", "failed"}
+            for key, value in reactions.items():
+                if key not in valid_keys:
+                    errors.append(f"reactions.{key}: unknown key (expected: working, done, failed)")
+                elif value not in VALID_REACTIONS:
+                    errors.append(
+                        f"reactions.{key}: invalid reaction '{value}' "
+                        f"(valid: {', '.join(sorted(VALID_REACTIONS))})"
+                    )
 
     return errors

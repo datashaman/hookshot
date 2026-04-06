@@ -13,8 +13,11 @@ hooks:
         1. Analyze this issue — understand what is being asked
         2. Search the codebase for relevant files and code
         3. Create an implementation plan
-        4. Post your analysis and plan as a comment on the issue using:
-           gh issue comment ${{ issue.number }} --repo ${{ repository.full_name }} --body '<your analysis>'
+        4. Post your analysis and plan as a comment on the issue.
+           You MUST include the marker <!-- hookshot:agent --> at the end of your comment:
+           gh issue comment ${{ issue.number }} --repo ${{ repository.full_name }} --body '<your analysis>
+
+           <!-- hookshot:agent -->'
 
         Be concise. Focus on feasibility, affected files, and a clear step-by-step plan.
       store:
@@ -43,10 +46,14 @@ hooks:
         5. Commit and push the branch
         6. Open a PR using:
            gh pr create --title 'Fix #${{ state.number }}: ${{ state.title }}' --body 'Resolves #${{ state.number }}'
-        7. Comment on the issue with a link to the PR using:
-           gh issue comment ${{ state.number }} --repo ${{ repository.full_name }} --body '<your comment with PR link>'
+        7. Comment on the issue with a link to the PR.
+           You MUST include the marker <!-- hookshot:agent --> at the end of your comment:
+           gh issue comment ${{ state.number }} --repo ${{ repository.full_name }} --body '<your comment with PR link>
+
+           <!-- hookshot:agent -->'
       if:
         - "${{ sender.type | neq Bot }}"
+        - "${{ comment.body | not_contains hookshot:agent }}"
         - "${{ comment.body | contains @implement }}"
       load:
         key: "issue:${{ repository.full_name }}:${{ issue.number }}"
@@ -75,10 +82,14 @@ hooks:
         3. Address the feedback — fix code, add tests, whatever is needed
         4. Commit and push:
            git add -A && git commit -m 'address PR feedback' && git push
-        5. Reply on the PR explaining what you changed:
-           gh pr comment ${{ issue.number }} --repo ${{ repository.full_name }} --body '<your response>'
+        5. Reply on the PR explaining what you changed.
+           You MUST include the marker <!-- hookshot:agent --> at the end of your comment:
+           gh pr comment ${{ issue.number }} --repo ${{ repository.full_name }} --body '<your response>
+
+           <!-- hookshot:agent -->'
       if:
         - "${{ sender.type | neq Bot }}"
+        - "${{ comment.body | not_contains hookshot:agent }}"
         - "${{ issue.pull_request.url | neq }}"
       load:
         key: "pr:${{ repository.full_name }}:${{ issue.number }}"
@@ -101,10 +112,14 @@ hooks:
         If they suggest changes, update your thinking.
         If they provide more context, incorporate it.
 
-        Post your response as a comment on the issue using:
-        gh issue comment ${{ state.number }} --repo ${{ repository.full_name }} --body '<your response>'
+        Post your response as a comment on the issue.
+        You MUST include the marker <!-- hookshot:agent --> at the end of your comment:
+        gh issue comment ${{ state.number }} --repo ${{ repository.full_name }} --body '<your response>
+
+        <!-- hookshot:agent -->'
       if:
         - "${{ sender.type | neq Bot }}"
+        - "${{ comment.body | not_contains hookshot:agent }}"
         - "${{ comment.body | not_contains @implement }}"
         - "${{ issue.pull_request.url | eq }}"
       load:
