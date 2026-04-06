@@ -106,6 +106,7 @@ hooks:
       if:
         - "${{ sender.type | neq Bot }}"
         - "${{ comment.body | not_contains @implement }}"
+        - "${{ issue.pull_request.url | eq }}"
       load:
         key: "issue:${{ repository.full_name }}:${{ issue.number }}"
       store:
