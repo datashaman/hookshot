@@ -7,6 +7,8 @@ from pathlib import Path
 import platformdirs
 import yaml
 
+from .reactions import VALID_REACTIONS
+
 _CONFIG_DIR = Path(platformdirs.user_config_dir("hookshot"))
 _DATA_DIR = Path(platformdirs.user_data_dir("hookshot"))
 
@@ -133,5 +135,21 @@ def validate_config(config: dict) -> list[str]:
                 clear = cmd["clear"]
                 if not isinstance(clear, list):
                     errors.append(f"hooks.{event}[{i}].clear: must be a list")
+
+    # Validate reactions
+    reactions = config.get("reactions")
+    if reactions is not None:
+        if not isinstance(reactions, dict):
+            errors.append("'reactions' must be a mapping")
+        else:
+            valid_keys = {"working", "done", "failed"}
+            for key, value in reactions.items():
+                if key not in valid_keys:
+                    errors.append(f"reactions.{key}: unknown key (expected: working, done, failed)")
+                elif value not in VALID_REACTIONS:
+                    errors.append(
+                        f"reactions.{key}: invalid reaction '{value}' "
+                        f"(valid: {', '.join(sorted(VALID_REACTIONS))})"
+                    )
 
     return errors

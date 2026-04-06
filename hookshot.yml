@@ -1,5 +1,10 @@
 repo: datashaman/hookshot
 
+reactions:
+  working: eyes
+  done: rocket
+  failed: confused
+
 hooks:
   issues.opened:
     - command: "claude -p --dangerously-skip-permissions"
@@ -13,8 +18,11 @@ hooks:
         1. Analyze this issue — understand what is being asked
         2. Search the codebase for relevant files and code
         3. Create an implementation plan
-        4. Post your analysis and plan as a comment on the issue using:
-           gh issue comment ${{ issue.number }} --repo ${{ repository.full_name }} --body '<your analysis>'
+        4. Post your analysis and plan as a comment on the issue.
+           You MUST include the marker <!-- hookshot:agent --> at the end of your comment:
+           gh issue comment ${{ issue.number }} --repo ${{ repository.full_name }} --body '<your analysis>
+
+           <!-- hookshot:agent -->'
 
         Be concise. Focus on feasibility, affected files, and a clear step-by-step plan.
       store:
@@ -43,16 +51,70 @@ hooks:
         5. Commit and push the branch
         6. Open a PR using:
            gh pr create --title 'Fix #${{ state.number }}: ${{ state.title }}' --body 'Resolves #${{ state.number }}'
-        7. Comment on the issue with a link to the PR using:
-           gh issue comment ${{ state.number }} --repo ${{ repository.full_name }} --body '<your comment with PR link>'
+        7. Comment on the issue with a link to the PR.
+           You MUST include the marker <!-- hookshot:agent --> at the end of your comment:
+           gh issue comment ${{ state.number }} --repo ${{ repository.full_name }} --body '<your comment with PR link>
+
+           <!-- hookshot:agent -->'
       if:
         - "${{ sender.type | neq Bot }}"
+        - "${{ comment.body | not_contains hookshot:agent }}"
         - "${{ comment.body | contains @implement }}"
       load:
         key: "issue:${{ repository.full_name }}:${{ issue.number }}"
       store:
         key: "issue:${{ repository.full_name }}:${{ issue.number }}"
         log: "${{ sender.login }} requested implementation — branch issue-${{ state.number }}"
+
+    # @review on a PR — trigger adversarial reviewer
+    - command: "claude -p --dangerously-skip-permissions"
+      stdin: |
+        You are an adversarial code reviewer for the datashaman/hookshot project.
+        Your job is to find problems, not to be polite.
+        A human has requested a fresh review.
+
+        PR #${{ issue.number }}: ${{ issue.title }}
+        Requested by: ${{ sender.login }}
+        Additional context from their comment:
+        ${{ comment.body }}
+
+        Prior context:
+        ${{ state.context }}
+
+        Steps:
+        1. Parse the PR title/body to find the related issue number (look for "Resolves #N" or "Fix #N")
+        2. Fetch the original issue and its comments for full context:
+           gh issue view <N> --repo ${{ repository.full_name }} --comments
+        3. Fetch the PR diff:
+           gh pr diff ${{ issue.number }} --repo ${{ repository.full_name }}
+        4. Read every changed file in full to understand the broader context
+        5. Write a brutal, thorough review covering:
+           - Does the implementation actually solve the issue as described?
+           - Bugs, logic errors, edge cases that will break
+           - Security issues (injection, secrets, permissions)
+           - Missing error handling that matters
+           - Race conditions or concurrency problems
+           - Things that will bite us in 6 months (maintenance traps)
+           - Whether tests actually cover the changes
+           - Anything the author clearly forgot
+        6. Post your review as a PR review comment. You MUST include the marker
+           <!-- hookshot:reviewer --> at the end of your review body:
+           gh pr review ${{ issue.number }} --repo ${{ repository.full_name }} --body '<your review>
+
+           <!-- hookshot:reviewer -->' --comment
+
+        Be direct. No praise sandwiches. If something is fine, skip it.
+        Focus on what's wrong or risky.
+      if:
+        - "${{ sender.type | neq Bot }}"
+        - "${{ comment.body | not_contains hookshot:agent }}"
+        - "${{ issue.pull_request.url | neq }}"
+        - "${{ comment.body | contains @review }}"
+      load:
+        key: "pr:${{ repository.full_name }}:${{ issue.number }}"
+      store:
+        key: "pr:${{ repository.full_name }}:${{ issue.number }}"
+        log: "${{ sender.login }} requested review: ${{ comment.body }}"
 
     # Human comment on a PR — implementer addresses feedback
     - command: "claude -p --dangerously-skip-permissions"
@@ -75,11 +137,16 @@ hooks:
         3. Address the feedback — fix code, add tests, whatever is needed
         4. Commit and push:
            git add -A && git commit -m 'address PR feedback' && git push
-        5. Reply on the PR explaining what you changed:
-           gh pr comment ${{ issue.number }} --repo ${{ repository.full_name }} --body '<your response>'
+        5. Reply on the PR explaining what you changed.
+           You MUST include the marker <!-- hookshot:agent --> at the end of your comment:
+           gh pr comment ${{ issue.number }} --repo ${{ repository.full_name }} --body '<your response>
+
+           <!-- hookshot:agent -->'
       if:
         - "${{ sender.type | neq Bot }}"
+        - "${{ comment.body | not_contains hookshot:agent }}"
         - "${{ issue.pull_request.url | neq }}"
+        - "${{ comment.body | not_contains @review }}"
       load:
         key: "pr:${{ repository.full_name }}:${{ issue.number }}"
       store:
@@ -101,11 +168,17 @@ hooks:
         If they suggest changes, update your thinking.
         If they provide more context, incorporate it.
 
-        Post your response as a comment on the issue using:
-        gh issue comment ${{ state.number }} --repo ${{ repository.full_name }} --body '<your response>'
+        Post your response as a comment on the issue.
+        You MUST include the marker <!-- hookshot:agent --> at the end of your comment:
+        gh issue comment ${{ state.number }} --repo ${{ repository.full_name }} --body '<your response>
+
+        <!-- hookshot:agent -->'
       if:
         - "${{ sender.type | neq Bot }}"
+        - "${{ comment.body | not_contains hookshot:agent }}"
+        - "${{ comment.body | not_contains hookshot:reviewer }}"
         - "${{ comment.body | not_contains @implement }}"
+        - "${{ issue.pull_request.url | eq }}"
       load:
         key: "issue:${{ repository.full_name }}:${{ issue.number }}"
       store:
