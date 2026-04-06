@@ -118,6 +118,7 @@ def run_command(
     dry_run: bool = False,
     state: StateStore | None = None,
     reactions: dict | None = None,
+    cwd: str | None = None,
 ) -> bool:
     """Expand templates in a command config and execute it.
 
@@ -150,6 +151,8 @@ def run_command(
 
     if dry_run:
         log.info("  [dry-run] Would execute: %s", command)
+        if cwd:
+            log.info("  [dry-run] cwd: %s", cwd)
         if stdin_text:
             log.info("  [dry-run] stdin: %s", stdin_text[:200])
         _process_store(cmd_config, payload, state, state_context, dry_run=True)
@@ -157,6 +160,8 @@ def run_command(
         return True
 
     log.info("  Executing: %s", command)
+    if cwd:
+        log.info("  cwd: %s", cwd)
 
     # Add "working" reaction before execution
     working_reaction = reactions.get("working") if reactions else None
@@ -171,6 +176,7 @@ def run_command(
             text=True,
             timeout=300,
             input=stdin_text,
+            cwd=cwd,
         )
         if result.stdout:
             log.info("  stdout: %s", result.stdout.rstrip())

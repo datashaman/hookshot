@@ -62,7 +62,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
         hooks = self.server.hookshot_config.get("hooks", {})
         reactions = self.server.hookshot_config.get("reactions")
-        executed = match_and_run(hooks, event, payload, state=self.server.hookshot_state, reactions=reactions)
+        worktrees = self.server.hookshot_config.get("worktrees")
+        executed = match_and_run(hooks, event, payload, state=self.server.hookshot_state, reactions=reactions, worktrees=worktrees)
 
         self.send_response(200)
         self.end_headers()
