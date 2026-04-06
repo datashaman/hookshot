@@ -15,6 +15,29 @@ from .server import serve
 from .state import StateStore
 
 
+class _HookshotFileFormatter(logging.Formatter):
+    """Standard text for most records; JSON lines for subprocess output (parseable log)."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        if getattr(record, "hookshot_subprocess", False):
+            payload = {
+                "ts": self.formatTime(record, self.datefmt),
+                "level": record.levelname,
+                "event": "subprocess_output",
+                "stream": getattr(record, "hookshot_stream", ""),
+                "line": getattr(record, "hookshot_line", ""),
+            }
+            return json.dumps(payload, ensure_ascii=False)
+        return super().format(record)
+
+
+class _SuppressSubprocessConsoleFilter(logging.Filter):
+    """Subprocess lines go to the terminal via print(); omit from console log handler."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not getattr(record, "hookshot_subprocess", False)
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="hookshot",
@@ -72,10 +95,12 @@ def main():
         format=log_format,
         level=log_level,
     )
+    for handler in logging.root.handlers:
+        handler.addFilter(_SuppressSubprocessConsoleFilter())
 
     # Also log to hookshot.log for persistent review
     file_handler = logging.FileHandler("hookshot.log")
-    file_handler.setFormatter(logging.Formatter(log_format))
+    file_handler.setFormatter(_HookshotFileFormatter(log_format))
     file_handler.setLevel(log_level)
     logging.getLogger("hookshot").addHandler(file_handler)
 

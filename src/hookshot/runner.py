@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import subprocess
+import sys
 import threading
 from typing import TYPE_CHECKING
 
@@ -15,6 +16,38 @@ if TYPE_CHECKING:
     from .state import StateStore
 
 log = logging.getLogger("hookshot")
+
+
+def _emit_subprocess_line(stream: str, line: str) -> None:
+    """Human-readable terminal output plus structured log line (file only).
+
+    Stdout/stderr from hook commands are printed without log prefixes so the CLI
+    mirrors a normal shell. The same line is logged for hookshot.log as JSON
+    (see :class:`hookshot.__main__._HookshotFileFormatter`).
+    """
+    text = line.rstrip("\r\n")
+    if stream == "stdout":
+        print(text, file=sys.stdout, flush=True)
+    else:
+        print(text, file=sys.stderr, flush=True)
+    level = logging.WARNING if stream == "stderr" else logging.INFO
+    log.log(
+        level,
+        "subprocess output",
+        extra={
+            "hookshot_subprocess": True,
+            "hookshot_stream": stream,
+            "hookshot_line": text,
+        },
+    )
+
+
+def _emit_subprocess_blob(stream: str, blob: str) -> None:
+    """Emit captured stdout/stderr block line-by-line (non-streaming path)."""
+    if not blob:
+        return
+    for part in blob.splitlines():
+        _emit_subprocess_line(stream, part + "\n")
 
 
 def resolve_dotpath(payload: dict, path: str) -> str:
@@ -120,10 +153,11 @@ def _run_command_streaming(
     stdin_text: str | None,
     timeout_sec: int,
 ) -> int:
-    """Run shell command with stdout/stderr streamed line-by-line to the logger.
+    """Run shell command with stdout/stderr streamed line-by-line.
 
-    Returns the process exit code. Uses worker threads to read both streams so
-    the child cannot deadlock when filling stderr while stdout is slow.
+    Lines go to the terminal (human-readable) and to hookshot.log as structured
+    records. Uses worker threads to read both streams so the child cannot
+    deadlock when filling stderr while stdout is slow.
     """
     use_stdin = stdin_text is not None
     proc = subprocess.Popen(
@@ -147,7 +181,7 @@ def _run_command_streaming(
         try:
             for line in iter(proc.stdout.readline, ""):
                 if line:
-                    log.info("  stdout: %s", line.rstrip("\r\n"))
+                    _emit_subprocess_line("stdout", line)
         finally:
             proc.stdout.close()
 
@@ -156,7 +190,7 @@ def _run_command_streaming(
         try:
             for line in iter(proc.stderr.readline, ""):
                 if line:
-                    log.warning("  stderr: %s", line.rstrip("\r\n"))
+                    _emit_subprocess_line("stderr", line)
         finally:
             proc.stderr.close()
 
@@ -208,8 +242,9 @@ def run_command(
     default_timeout: seconds when the command has no ``timeout`` key (from global
         config). Falls back to :data:`hookshot.config.DEFAULT_COMMAND_TIMEOUT`.
 
-    Set ``stream: true`` on the command to use ``Popen`` and log stdout/stderr
-    line-by-line as the subprocess runs (command-agnostic; useful for long runs).
+    Set ``stream: true`` on the command to use ``Popen`` and mirror stdout/stderr
+    line-by-line to the terminal while writing structured JSON lines to the log
+    file (command-agnostic; useful for long runs).
     """
     # Load state context
     state_context = None
@@ -246,7 +281,9 @@ def run_command(
             log.info("  [dry-run] cwd: %s", cwd)
         log.info("  [dry-run] timeout: %ds", timeout_sec)
         if stream:
-            log.info("  [dry-run] stream: line-by-line logging enabled")
+            log.info(
+                "  [dry-run] stream: live terminal output + structured log lines"
+            )
         if stdin_text:
             log.info("  [dry-run] stdin: %s", stdin_text[:200])
         _process_store(cmd_config, payload, state, state_context, dry_run=True)
@@ -281,10 +318,8 @@ def run_command(
                 cwd=cwd,
             )
             returncode = result.returncode
-            if result.stdout:
-                log.info("  stdout: %s", result.stdout.rstrip())
-            if result.stderr:
-                log.warning("  stderr: %s", result.stderr.rstrip())
+            _emit_subprocess_blob("stdout", result.stdout)
+            _emit_subprocess_blob("stderr", result.stderr)
 
         if returncode != 0:
             log.error("  Command failed (exit code %d): %s", returncode, command)

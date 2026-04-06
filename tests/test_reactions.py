@@ -355,7 +355,7 @@ def test_run_command_stream_uses_popen(mock_run, mock_popen):
 
 @patch("hookshot.runner.add_reaction")
 @patch("hookshot.runner.remove_reaction")
-def test_run_command_stream_real_process_logs_lines(mock_remove, mock_add, caplog):
+def test_run_command_stream_real_process_logs_lines(mock_remove, mock_add, caplog, capsys):
     import logging
 
     caplog.set_level(logging.INFO)
@@ -366,5 +366,13 @@ def test_run_command_stream_real_process_logs_lines(mock_remove, mock_add, caplo
         },
         {},
     )
-    assert "stdout: a" in caplog.text
-    assert "stdout: b" in caplog.text
+    out_lines = [
+        r.hookshot_line
+        for r in caplog.records
+        if getattr(r, "hookshot_subprocess", False) and r.hookshot_stream == "stdout"
+    ]
+    assert "a" in out_lines
+    assert "b" in out_lines
+    captured = capsys.readouterr()
+    assert "a" in captured.out
+    assert "b" in captured.out
