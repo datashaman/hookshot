@@ -1,0 +1,6 @@
+repo: datashaman/hookshot
+hooks:
+  issues.opened:
+  - command: 'echo ''New issue #${{ issue.number }}: ${{ issue.title }}'''
+  push:
+  - command: echo 'Push to ${{ repository.full_name }} on ${{ ref }}'
