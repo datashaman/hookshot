@@ -1,5 +1,10 @@
 repo: datashaman/hookshot
 
+worktrees:
+  path: .hookshot/worktrees
+  setup: uv sync
+  teardown: ''
+
 reactions:
   working: eyes
   done: rocket

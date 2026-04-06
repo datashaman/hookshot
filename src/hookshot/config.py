@@ -63,6 +63,22 @@ def load_config(path: Path | None = None) -> dict:
 
     config.setdefault("hooks", {})
 
+    # Worktree defaults
+    if "worktrees" in config:
+        wt = config["worktrees"]
+        if not isinstance(wt, dict):
+            wt = {}
+            config["worktrees"] = wt
+        wt.setdefault("path", ".hookshot/worktrees")
+        if "setup" in wt:
+            wt["setup"] = expand_env(str(wt["setup"])).strip() or None
+        else:
+            wt["setup"] = None
+        if "teardown" in wt:
+            wt["teardown"] = expand_env(str(wt["teardown"])).strip() or None
+        else:
+            wt["teardown"] = None
+
     # Expand env vars in repo
     if "repo" in config:
         config["repo"] = expand_env(str(config["repo"]))
@@ -135,6 +151,24 @@ def validate_config(config: dict) -> list[str]:
                 clear = cmd["clear"]
                 if not isinstance(clear, list):
                     errors.append(f"hooks.{event}[{i}].clear: must be a list")
+
+    # Validate worktrees
+    worktrees = config.get("worktrees")
+    if worktrees is not None:
+        if not isinstance(worktrees, dict):
+            errors.append("'worktrees' must be a mapping")
+        else:
+            valid_wt_keys = {"path", "setup", "teardown"}
+            for key in worktrees:
+                if key not in valid_wt_keys:
+                    errors.append(f"worktrees.{key}: unknown key (expected: path, setup, teardown)")
+            wt_path = worktrees.get("path", "")
+            if wt_path and not isinstance(wt_path, str):
+                errors.append("worktrees.path: must be a string")
+            elif isinstance(wt_path, str):
+                normalized = str(Path(wt_path).resolve())
+                if normalized == "/" or ".." in Path(wt_path).parts:
+                    errors.append(f"worktrees.path: unsafe path '{wt_path}'")
 
     # Validate reactions
     reactions = config.get("reactions")
