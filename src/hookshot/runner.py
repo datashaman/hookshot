@@ -175,12 +175,14 @@ def run_command(
         log.info("  Command succeeded: %s", command)
         try:
             _process_store(cmd_config, payload, state, state_context)
-        except Exception as e:
-            log.error("  State store failed: %s", e)
+        except Exception:
+            store_key = cmd_config.get("store", {}).get("key", "?")
+            log.error("  State store failed for key '%s'", store_key, exc_info=True)
         try:
             _process_clear(cmd_config, payload, state)
-        except Exception as e:
-            log.error("  State clear failed: %s", e)
+        except Exception:
+            clear_keys = cmd_config.get("clear", [])
+            log.error("  State clear failed for keys %s", clear_keys, exc_info=True)
 
         return True
     except subprocess.TimeoutExpired:

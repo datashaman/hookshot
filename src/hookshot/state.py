@@ -23,10 +23,10 @@ class StateStore:
                 return json.load(f)
         except json.JSONDecodeError as e:
             log.error("Corrupt state file %s: %s", self.path, e)
-            raise
+            return {}
         except (IOError, PermissionError) as e:
             log.error("Cannot read state file %s: %s", self.path, e)
-            raise
+            return {}
 
     def _save(self, data: dict):
         self.path.parent.mkdir(parents=True, exist_ok=True)

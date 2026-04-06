@@ -35,11 +35,14 @@ def match_and_run(
 
     executed = 0
 
+    log.info("Processing event: %s (action: %s)", event, action or "-")
+
     for hook_key, commands in hooks.items():
         # Match: exact qualified name, or bare event name
         if hook_key == qualified or hook_key == event:
-            log.info("Matched hook: %s (%d command(s))", hook_key, len(commands))
-            for cmd in commands:
+            log.info("Matched hook: %s → %d command(s)", hook_key, len(commands))
+            for i, cmd in enumerate(commands, 1):
+                log.info("  Running command %d/%d: %s", i, len(commands), cmd.get("command", "?"))
                 if run_command(cmd, payload, dry_run=dry_run, state=state):
                     executed += 1
 
