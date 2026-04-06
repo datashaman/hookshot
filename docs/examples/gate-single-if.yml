@@ -1,0 +1,5 @@
+# Example: one conditional hook (see how-to/gate-on-markers.md).
+hooks:
+  issue_comment.created:
+    - command: "./handle.sh"
+      if: "${{ comment.body | contains @implement }}"

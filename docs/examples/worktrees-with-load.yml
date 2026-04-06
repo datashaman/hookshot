@@ -1,0 +1,11 @@
+# Example: worktrees + load (see how-to/use-worktrees-per-issue.md).
+worktrees:
+  path: .hookshot/worktrees
+  setup: uv sync
+  teardown: ""
+
+hooks:
+  issue_comment.created:
+    - command: "git status"
+      load:
+        key: "issue:${{ repository.full_name }}:${{ issue.number }}"

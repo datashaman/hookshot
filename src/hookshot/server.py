@@ -250,7 +250,7 @@ class GhForwardSupervisor:
             if self._proc and self._proc.poll() is not None:
                 rc = self._proc.returncode
                 consecutive_failures += 1
-                if consecutive_failures > self.MAX_RETRIES:
+                if consecutive_failures >= self.MAX_RETRIES:
                     log.error(
                         "gh webhook forward failed %d times consecutively, giving up",
                         consecutive_failures,
