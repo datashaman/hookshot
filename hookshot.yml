@@ -30,6 +30,8 @@ hooks:
            <!-- hookshot:agent -->'
 
         Be concise. Focus on feasibility, affected files, and a clear step-by-step plan.
+        Include a "Testing" section that specifies what tests should be written or updated
+        to cover the proposed changes.
       store:
         key: "issue:${{ repository.full_name }}:${{ issue.number }}"
         values:
@@ -52,11 +54,15 @@ hooks:
         1. Read the plan from the context above
         2. Create a new branch: git checkout -b issue-${{ state.number }}
         3. Implement the changes
-        4. Run any tests to verify
-        5. Commit and push the branch
-        6. Open a PR using:
+        4. Write tests for any new or changed functionality. Every behavioral change must
+           have corresponding test coverage. If you're modifying existing code, update
+           existing tests or add new ones to cover the changes.
+        5. Run the full test suite: uv run pytest
+           If any tests fail, fix them before proceeding. Do NOT push with failing tests.
+        6. Commit and push the branch
+        7. Open a PR using:
            gh pr create --title 'Fix #${{ state.number }}: ${{ state.title }}' --body 'Resolves #${{ state.number }}'
-        7. Comment on the issue with a link to the PR.
+        8. Comment on the issue with a link to the PR.
            You MUST include the marker <!-- hookshot:agent --> at the end of your comment:
            gh issue comment ${{ state.number }} --repo ${{ repository.full_name }} --body '<your comment with PR link>
 
@@ -100,7 +106,10 @@ hooks:
            - Missing error handling that matters
            - Race conditions or concurrency problems
            - Things that will bite us in 6 months (maintenance traps)
-           - Whether tests actually cover the changes
+           - TEST COVERAGE (BLOCKING): Do the tests adequately cover the changes?
+             Are there new code paths without tests? Are edge cases tested?
+             Missing or inadequate test coverage is a blocking issue, not a nice-to-have.
+             Run the test suite (uv run pytest) and report the results.
            - Anything the author clearly forgot
         6. Post your review as a PR review comment. You MUST include the marker
            <!-- hookshot:reviewer --> at the end of your review body:
@@ -139,10 +148,12 @@ hooks:
            gh pr diff ${{ issue.number }} --repo ${{ repository.full_name }}
         2. Check out the PR branch:
            git fetch origin ${{ state.pr_branch }} && git checkout ${{ state.pr_branch }}
-        3. Address the feedback — fix code, add tests, whatever is needed
-        4. Commit and push:
+        3. Address the feedback — fix code, add or update tests as needed
+        4. Run the full test suite: uv run pytest
+           If any tests fail, fix them before pushing. Do NOT push with failing tests.
+        5. Commit and push:
            git add -A && git commit -m 'address PR feedback' && git push
-        5. Reply on the PR explaining what you changed.
+        6. Reply on the PR explaining what you changed.
            You MUST include the marker <!-- hookshot:agent --> at the end of your comment:
            gh pr comment ${{ issue.number }} --repo ${{ repository.full_name }} --body '<your response>
 
@@ -215,7 +226,10 @@ hooks:
            - Missing error handling that matters
            - Race conditions or concurrency problems
            - Things that will bite us in 6 months (maintenance traps)
-           - Whether tests actually cover the changes
+           - TEST COVERAGE (BLOCKING): Do the tests adequately cover the changes?
+             Are there new code paths without tests? Are edge cases tested?
+             Missing or inadequate test coverage is a blocking issue, not a nice-to-have.
+             Run the test suite (uv run pytest) and report the results.
            - Anything the author clearly forgot
         6. Post your review as a PR review comment. You MUST include the marker
            <!-- hookshot:reviewer --> at the end of your review body:
@@ -267,9 +281,11 @@ hooks:
            - Fix legitimate bugs and issues
            - Add missing error handling or tests if warranted
            - For points you disagree with, note why
-        6. Commit and push your changes:
+        6. Run the full test suite: uv run pytest
+           If any tests fail, fix them before pushing. Do NOT push with failing tests.
+        7. Commit and push your changes:
            git add -A && git commit -m 'address review feedback' && git push
-        7. Post a response as a PR review comment. Include the marker
+        8. Post a response as a PR review comment. Include the marker
            <!-- hookshot:implementer --> at the end:
            gh pr review ${{ pull_request.number }} --repo ${{ repository.full_name }} --body '<your response>
 
@@ -303,9 +319,10 @@ hooks:
            gh pr diff ${{ pull_request.number }} --repo ${{ repository.full_name }}
         2. Check each point from your original review — was it actually fixed?
         3. Look for any new issues introduced by the fixes
-        4. If everything looks good, approve the PR:
+        4. Run the test suite (uv run pytest) and verify all tests pass
+        5. If everything looks good and tests pass, approve the PR:
            gh pr review ${{ pull_request.number }} --repo ${{ repository.full_name }} --approve --body '<your response>'
-        5. If there are still issues, post another review with the marker:
+        6. If there are still issues or tests fail, post another review with the marker:
            gh pr review ${{ pull_request.number }} --repo ${{ repository.full_name }} --body '<your response>
 
            <!-- hookshot:reviewer -->' --comment
