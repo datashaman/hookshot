@@ -11,7 +11,7 @@ reactions:
   failed: confused
 
 hooks:
-  issues.opened:
+  issues.opened, issues.reopened:
     - command: "claude -p --dangerously-skip-permissions"
       stdin: |
         You are analyzing a new GitHub issue for the datashaman/hookshot project.

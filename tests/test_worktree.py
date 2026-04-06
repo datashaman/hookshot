@@ -1,7 +1,7 @@
 """Tests for git worktree management."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -13,7 +13,7 @@ from hookshot.worktree import (
     _is_valid_worktree,
 )
 from hookshot.matcher import match_and_run, _resolve_worktree_cwd, _handle_close_worktree
-from hookshot.config import load_config, validate_config
+from hookshot.config import validate_config
 
 
 # --- worktree_path ---

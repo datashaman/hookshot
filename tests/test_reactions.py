@@ -3,7 +3,6 @@
 from unittest.mock import patch, MagicMock
 
 from hookshot.reactions import (
-    VALID_REACTIONS,
     _reaction_endpoint,
     add_reaction,
     remove_reaction,
