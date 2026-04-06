@@ -2,12 +2,14 @@
 
 import hashlib
 import hmac
+import itertools
 import json
 import logging
 import shutil
 import subprocess
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from .config import get_events
@@ -15,6 +17,9 @@ from .matcher import match_and_run
 from .state import StateStore
 
 log = logging.getLogger("hookshot")
+
+# Max concurrent webhook command runs (each delivery still parses/verifies synchronously)
+_DEFAULT_WORKER_THREADS = 8
 
 
 class WebhookHandler(BaseHTTPRequestHandler):
@@ -60,23 +65,38 @@ class WebhookHandler(BaseHTTPRequestHandler):
             self.wfile.write(b"Invalid JSON")
             return
 
+        delivery = self.headers.get("X-GitHub-Delivery", "-")
+        work_id = next(self.server.hookshot_work_seq)
+
         hooks = self.server.hookshot_config.get("hooks", {})
         reactions = self.server.hookshot_config.get("reactions")
         worktrees = self.server.hookshot_config.get("worktrees")
         default_timeout = self.server.hookshot_config.get("timeout")
-        executed = match_and_run(
-            hooks,
+
+        self.server.hookshot_executor.submit(
+            _run_webhook_commands,
+            self.server,
+            work_id,
+            delivery,
             event,
             payload,
-            state=self.server.hookshot_state,
-            reactions=reactions,
-            worktrees=worktrees,
-            default_timeout=default_timeout,
+            hooks,
+            reactions,
+            worktrees,
+            default_timeout,
         )
 
-        self.send_response(200)
+        log.info(
+            "Accepted webhook work_id=%s delivery=%s event=%s (queued)",
+            work_id,
+            delivery,
+            event,
+        )
+        self.send_response(202)
         self.end_headers()
-        self.wfile.write(f"Executed {executed} command(s)".encode())
+        self.wfile.write(
+            f"Accepted — work {work_id} queued (delivery {delivery})".encode()
+        )
 
     def do_GET(self):
         """Health check endpoint."""
@@ -87,6 +107,70 @@ class WebhookHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         """Route HTTP server logs through our logger."""
         log.debug(format, *args)
+
+
+def _run_webhook_commands(
+    server,
+    work_id: int,
+    delivery: str,
+    event: str,
+    payload: dict,
+    hooks: dict,
+    reactions: dict | None,
+    worktrees: dict | None,
+    default_timeout: int | None,
+) -> None:
+    """Run hook commands in a thread pool worker (HTTP handler returns before this)."""
+    threading.current_thread().name = f"hookshot-{work_id}"
+    log.info(
+        "Webhook work started work_id=%s delivery=%s event=%s thread=%s",
+        work_id,
+        delivery,
+        event,
+        threading.current_thread().name,
+    )
+    try:
+        executed = match_and_run(
+            hooks,
+            event,
+            payload,
+            state=server.hookshot_state,
+            reactions=reactions,
+            worktrees=worktrees,
+            default_timeout=default_timeout,
+        )
+        log.info(
+            "Webhook work finished work_id=%s delivery=%s executed=%d",
+            work_id,
+            delivery,
+            executed,
+        )
+    except Exception:
+        log.exception(
+            "Webhook work failed work_id=%s delivery=%s event=%s",
+            work_id,
+            delivery,
+            event,
+        )
+
+
+class HookshotHTTPServer(HTTPServer):
+    """HTTP server with a bounded pool for running webhook commands in the background."""
+
+    def __init__(
+        self,
+        server_address,
+        RequestHandlerClass,
+        *,
+        max_workers: int = _DEFAULT_WORKER_THREADS,
+        bind_and_activate: bool = True,
+    ):
+        super().__init__(server_address, RequestHandlerClass, bind_and_activate)
+        self.hookshot_work_seq = itertools.count(1)
+        self.hookshot_executor = ThreadPoolExecutor(
+            max_workers=max_workers,
+            thread_name_prefix="hookshot",
+        )
 
 
 def verify_signature(body: bytes, secret: str, signature: str) -> bool:
@@ -107,7 +191,7 @@ def serve(config: dict):
     port = config["listen"]["port"]
     repo = config.get("repo")
 
-    server = HTTPServer((host, port), WebhookHandler)
+    server = HookshotHTTPServer((host, port), WebhookHandler)
     server.hookshot_config = config
     server.hookshot_state = StateStore(config.get("state_file"))
 
@@ -127,6 +211,8 @@ def serve(config: dict):
     finally:
         if gh_supervisor:
             gh_supervisor.stop()
+        log.info("Stopping command executor (waiting for in-flight webhooks)...")
+        server.hookshot_executor.shutdown(wait=True)
         server.server_close()
 
 
