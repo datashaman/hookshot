@@ -18,8 +18,15 @@ class StateStore:
     def _load(self) -> dict:
         if not self.path.exists():
             return {}
-        with open(self.path) as f:
-            return json.load(f)
+        try:
+            with open(self.path) as f:
+                return json.load(f)
+        except json.JSONDecodeError as e:
+            log.error("Corrupt state file %s: %s", self.path, e)
+            raise
+        except (IOError, PermissionError) as e:
+            log.error("Cannot read state file %s: %s", self.path, e)
+            raise
 
     def _save(self, data: dict):
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -28,8 +35,18 @@ class StateStore:
             with os.fdopen(fd, "w") as f:
                 json.dump(data, f, indent=2)
             os.replace(tmp, self.path)
+        except (IOError, PermissionError) as e:
+            log.error("Cannot write state file %s: %s", self.path, e)
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
         except BaseException:
-            os.unlink(tmp)
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
             raise
 
     def get(self, key: str) -> dict:

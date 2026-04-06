@@ -38,9 +38,12 @@ def match_and_run(
     for hook_key, commands in hooks.items():
         # Match: exact qualified name, or bare event name
         if hook_key == qualified or hook_key == event:
-            log.info("Matched hook: %s", hook_key)
+            log.info("Matched hook: %s (%d command(s))", hook_key, len(commands))
             for cmd in commands:
                 if run_command(cmd, payload, dry_run=dry_run, state=state):
                     executed += 1
+
+    if not executed:
+        log.info("No hooks matched event: %s", qualified or event)
 
     return executed

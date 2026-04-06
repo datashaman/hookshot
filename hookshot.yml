@@ -1,6 +1,86 @@
 repo: datashaman/hookshot
+
 hooks:
   issues.opened:
-  - command: 'echo ''New issue #${{ issue.number }}: ${{ issue.title }}'''
-  push:
-  - command: echo 'Push to ${{ repository.full_name }} on ${{ ref }}'
+    - command: "claude -p --dangerously-skip-permissions"
+      stdin: |
+        You are analyzing a new GitHub issue for the datashaman/hookshot project.
+
+        Issue #${{ issue.number }}: ${{ issue.title }}
+        Author: ${{ sender.login }}
+        Body: ${{ issue.body }}
+
+        1. Analyze this issue — understand what is being asked
+        2. Search the codebase for relevant files and code
+        3. Create an implementation plan
+        4. Post your analysis and plan as a comment on the issue using:
+           gh issue comment ${{ issue.number }} --repo ${{ repository.full_name }} --body '<your analysis>'
+
+        Be concise. Focus on feasibility, affected files, and a clear step-by-step plan.
+      store:
+        key: "issue:${{ repository.full_name }}:${{ issue.number }}"
+        values:
+          title: "${{ issue.title }}"
+          author: "${{ sender.login }}"
+          number: "${{ issue.number }}"
+        log: "Issue #${{ issue.number }} opened by ${{ sender.login }}: ${{ issue.title }}\n\n${{ issue.body }}"
+
+  issue_comment.created:
+    # @implement — create a branch, implement, open PR
+    - command: "claude -p --dangerously-skip-permissions"
+      stdin: |
+        You are working on a GitHub issue for the datashaman/hookshot project.
+
+        Context of what has happened so far:
+        ${{ state.context }}
+
+        The user ${{ sender.login }} has asked you to implement the plan.
+
+        1. Read the plan from the context above
+        2. Create a new branch: git checkout -b issue-${{ state.number }}
+        3. Implement the changes
+        4. Run any tests to verify
+        5. Commit and push the branch
+        6. Open a PR using:
+           gh pr create --title 'Fix #${{ state.number }}: ${{ state.title }}' --body 'Resolves #${{ state.number }}'
+        7. Comment on the issue with a link to the PR using:
+           gh issue comment ${{ state.number }} --repo ${{ repository.full_name }} --body '<your comment with PR link>'
+      if:
+        - "${{ sender.type | neq Bot }}"
+        - "${{ comment.body | contains @implement }}"
+      load:
+        key: "issue:${{ repository.full_name }}:${{ issue.number }}"
+      store:
+        key: "issue:${{ repository.full_name }}:${{ issue.number }}"
+        log: "${{ sender.login }} requested implementation"
+
+    # Any other human comment — continue the conversation
+    - command: "claude -p --dangerously-skip-permissions"
+      stdin: |
+        You are discussing a GitHub issue for the datashaman/hookshot project.
+
+        Context of what has happened so far:
+        ${{ state.context }}
+
+        A new comment was posted by ${{ sender.login }}:
+        ${{ comment.body }}
+
+        Respond thoughtfully. If they ask questions about the plan, clarify.
+        If they suggest changes, update your thinking.
+        If they provide more context, incorporate it.
+
+        Post your response as a comment on the issue using:
+        gh issue comment ${{ state.number }} --repo ${{ repository.full_name }} --body '<your response>'
+      if:
+        - "${{ sender.type | neq Bot }}"
+        - "${{ comment.body | not_contains @implement }}"
+      load:
+        key: "issue:${{ repository.full_name }}:${{ issue.number }}"
+      store:
+        key: "issue:${{ repository.full_name }}:${{ issue.number }}"
+        log: "${{ sender.login }} commented: ${{ comment.body }}"
+
+  issues.closed:
+    - command: "echo 'Issue #${{ issue.number }} closed, cleaning up state'"
+      clear:
+        - "issue:${{ repository.full_name }}:${{ issue.number }}"
