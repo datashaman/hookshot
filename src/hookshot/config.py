@@ -4,10 +4,10 @@ import os
 import re
 from pathlib import Path
 
-from .reactions import VALID_REACTIONS
-
 import platformdirs
 import yaml
+
+from .reactions import VALID_REACTIONS
 
 _CONFIG_DIR = Path(platformdirs.user_config_dir("hookshot"))
 _DATA_DIR = Path(platformdirs.user_data_dir("hookshot"))
