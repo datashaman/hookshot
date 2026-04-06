@@ -6,11 +6,68 @@ import logging
 from typing import TYPE_CHECKING
 
 from .runner import run_command
+from .worktree import ensure_worktree, extract_issue_number, remove_worktree
 
 if TYPE_CHECKING:
     from .state import StateStore
 
 log = logging.getLogger("hookshot")
+
+# Events that trigger worktree cleanup
+_CLOSE_EVENTS = {"issues.closed", "issues.deleted"}
+
+
+def _resolve_worktree_cwd(
+    cmd: dict,
+    payload: dict,
+    qualified: str | None,
+    worktrees_config: dict | None,
+) -> str | None:
+    """Determine the working directory for a command.
+
+    If worktrees are configured and the command has a load directive with an
+    issue key, create/reuse a worktree and return its path.
+    """
+    if not worktrees_config:
+        return None
+
+    issue_number = extract_issue_number(payload)
+    if issue_number is None:
+        return None
+
+    # For close events, don't create a worktree — removal is handled separately
+    if qualified in _CLOSE_EVENTS:
+        return None
+
+    # Only commands with a load directive (issue-context-aware) run in a worktree
+    if "load" not in cmd:
+        return None
+
+    base_path = worktrees_config["path"]
+    setup = worktrees_config.get("setup")
+
+    wt_path = ensure_worktree(base_path, issue_number, setup_command=setup)
+    return str(wt_path)
+
+
+def _handle_close_worktree(
+    payload: dict,
+    qualified: str | None,
+    worktrees_config: dict | None,
+) -> None:
+    """Remove the worktree when an issue is closed."""
+    if not worktrees_config:
+        return
+    if qualified not in _CLOSE_EVENTS:
+        return
+
+    issue_number = extract_issue_number(payload)
+    if issue_number is None:
+        return
+
+    base_path = worktrees_config["path"]
+    teardown = worktrees_config.get("teardown")
+    remove_worktree(base_path, issue_number, teardown_command=teardown)
 
 
 def match_and_run(
@@ -21,6 +78,7 @@ def match_and_run(
     dry_run: bool = False,
     state: StateStore | None = None,
     reactions: dict | None = None,
+    worktrees: dict | None = None,
 ) -> int:
     """Match a GitHub event against configured hooks and run matching commands.
 
@@ -46,9 +104,18 @@ def match_and_run(
             matched = True
             log.info("Matched hook: %s → %d command(s)", hook_key, len(commands))
             for i, cmd in enumerate(commands, 1):
+                try:
+                    cwd = _resolve_worktree_cwd(cmd, payload, qualified, worktrees)
+                except RuntimeError:
+                    log.error("  Skipping command %d/%d (worktree creation failed): %s", i, len(commands), cmd.get("command", "?"))
+                    continue
                 log.info("  Running command %d/%d: %s", i, len(commands), cmd.get("command", "?"))
-                if run_command(cmd, payload, dry_run=dry_run, state=state, reactions=reactions):
+                if run_command(cmd, payload, dry_run=dry_run, state=state, reactions=reactions, cwd=cwd):
                     executed += 1
+
+    # Handle worktree cleanup on issue close (after commands run)
+    if not dry_run:
+        _handle_close_worktree(payload, qualified, worktrees)
 
     if not matched:
         log.info("No hooks matched event: %s", qualified or event)
