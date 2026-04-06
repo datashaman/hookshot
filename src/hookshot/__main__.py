@@ -65,10 +65,19 @@ def main():
 
     args = parser.parse_args()
 
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    log_format = "%(asctime)s %(levelname)s %(message)s"
+
     logging.basicConfig(
-        format="%(asctime)s %(levelname)s %(message)s",
-        level=logging.DEBUG if args.verbose else logging.INFO,
+        format=log_format,
+        level=log_level,
     )
+
+    # Also log to hookshot.log for persistent review
+    file_handler = logging.FileHandler("hookshot.log")
+    file_handler.setFormatter(logging.Formatter(log_format))
+    file_handler.setLevel(log_level)
+    logging.getLogger("hookshot").addHandler(file_handler)
 
     if args.command is None:
         parser.print_help()

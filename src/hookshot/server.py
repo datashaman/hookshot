@@ -6,6 +6,8 @@ import json
 import logging
 import shutil
 import subprocess
+import threading
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from .config import get_events
@@ -58,8 +60,6 @@ class WebhookHandler(BaseHTTPRequestHandler):
             self.wfile.write(b"Invalid JSON")
             return
 
-        log.info("Received event: %s (action: %s)", event, payload.get("action", "-"))
-
         hooks = self.server.hookshot_config.get("hooks", {})
         executed = match_and_run(hooks, event, payload, state=self.server.hookshot_state)
 
@@ -104,20 +104,78 @@ def serve(config: dict):
     log.info("Configured hooks: %s", ", ".join(config.get("hooks", {}).keys()) or "(none)")
     log.info("State file: %s", server.hookshot_state.path)
 
-    gh_proc = None
+    gh_supervisor = None
     if repo:
-        gh_proc = _start_gh_forward(config, port)
+        gh_supervisor = GhForwardSupervisor(config, port)
+        gh_supervisor.start()
 
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         log.info("Shutting down")
     finally:
-        if gh_proc:
-            log.info("Stopping gh webhook forward")
-            gh_proc.terminate()
-            gh_proc.wait()
+        if gh_supervisor:
+            gh_supervisor.stop()
         server.server_close()
+
+
+class GhForwardSupervisor:
+    """Monitor and auto-restart the gh webhook forward process."""
+
+    INITIAL_DELAY = 5  # seconds before first restart
+    MAX_DELAY = 300  # cap backoff at 5 minutes
+    MAX_RETRIES = 10  # give up after this many consecutive failures
+
+    def __init__(self, config: dict, port: int):
+        self.config = config
+        self.port = port
+        self._proc = None
+        self._running = False
+        self._thread = None
+
+    def start(self):
+        self._running = True
+        self._proc = _start_gh_forward(self.config, self.port)
+        self._thread = threading.Thread(target=self._watch, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._running = False
+        if self._proc:
+            log.info("Stopping gh webhook forward")
+            self._proc.terminate()
+            self._proc.wait()
+
+    def _watch(self):
+        consecutive_failures = 0
+        delay = self.INITIAL_DELAY
+        while self._running:
+            if self._proc and self._proc.poll() is not None:
+                rc = self._proc.returncode
+                consecutive_failures += 1
+                if consecutive_failures > self.MAX_RETRIES:
+                    log.error(
+                        "gh webhook forward failed %d times consecutively, giving up",
+                        consecutive_failures,
+                    )
+                    return
+                log.warning(
+                    "gh webhook forward exited (code %d), restarting in %ds (attempt %d/%d)...",
+                    rc, delay, consecutive_failures, self.MAX_RETRIES,
+                )
+                time.sleep(delay)
+                delay = min(delay * 2, self.MAX_DELAY)
+                if self._running:
+                    try:
+                        self._proc = _start_gh_forward(self.config, self.port)
+                    except Exception as e:
+                        log.error("Failed to restart gh webhook forward: %s", e)
+            else:
+                # Process is still running — reset failure tracking
+                if consecutive_failures > 0:
+                    consecutive_failures = 0
+                    delay = self.INITIAL_DELAY
+            time.sleep(1)
 
 
 def _ensure_gh_webhook_extension():

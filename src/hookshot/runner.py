@@ -31,21 +31,71 @@ def resolve_dotpath(payload: dict, path: str) -> str:
     return str(current)
 
 
+def apply_filter(value: str, filter_expr: str) -> str:
+    """Apply a pipe filter to a resolved value.
+
+    Supported filters:
+        contains <arg>      → "true" if value contains arg (case-insensitive)
+        not_contains <arg>  → "true" if value does NOT contain arg (case-insensitive)
+        eq <arg>            → "true" if value equals arg (case-insensitive)
+        neq <arg>           → "true" if value does NOT equal arg (case-insensitive)
+        lower               → lowercase
+        upper               → uppercase
+    """
+    parts = filter_expr.strip().split(None, 1)
+    name = parts[0]
+    arg = parts[1] if len(parts) > 1 else ""
+
+    if name == "contains":
+        return "true" if arg.lower() in value.lower() else "false"
+    elif name == "not_contains":
+        return "true" if arg.lower() not in value.lower() else "false"
+    elif name == "eq":
+        return "true" if value.strip().lower() == arg.lower() else "false"
+    elif name == "neq":
+        return "true" if value.strip().lower() != arg.lower() else "false"
+    elif name == "lower":
+        return value.lower()
+    elif name == "upper":
+        return value.upper()
+    else:
+        log.warning("Unknown filter: %s", name)
+        return value
+
+
 def expand_template(
     template: str,
     payload: dict,
     state_context: dict | None = None,
 ) -> str:
-    """Replace ${{ dotpath }} placeholders with values from the payload.
+    """Replace ${{ dotpath }} or ${{ dotpath | filter arg }} placeholders.
 
     Paths starting with "state." resolve from state_context instead.
+    Pipe filters are applied after value resolution.
     """
     def replacer(m):
-        path = m.group(1).strip()
+        expr = m.group(1).strip()
+
+        # Split on first pipe to separate path from filter
+        if "|" in expr:
+            path, filter_expr = expr.split("|", 1)
+            path = path.strip()
+        else:
+            path = expr
+            filter_expr = None
+
+        # Resolve value
         if path.startswith("state.") and state_context is not None:
             state_key = path[len("state."):]
-            return state_context.get(state_key, "")
-        return resolve_dotpath(payload, path)
+            value = state_context.get(state_key, "")
+        else:
+            value = resolve_dotpath(payload, path)
+
+        # Apply filter if present
+        if filter_expr:
+            value = apply_filter(value, filter_expr)
+
+        return value
 
     return re.sub(r"\$\{\{\s*([^}]+?)\s*\}\}", replacer, template)
 
@@ -79,15 +129,26 @@ def run_command(
 
     command = expand_template(cmd_config["command"], payload, state_context)
 
-    # Check condition
+    # Expand optional stdin content
+    stdin_text = None
+    if "stdin" in cmd_config:
+        stdin_text = expand_template(str(cmd_config["stdin"]), payload, state_context)
+
+    # Check conditions — single string or list (all must be truthy)
     if "if" in cmd_config:
-        condition = expand_template(str(cmd_config["if"]), payload, state_context)
-        if not is_truthy(condition):
-            log.info("  Skipped (condition false): %s", command)
-            return False
+        conditions = cmd_config["if"]
+        if isinstance(conditions, str):
+            conditions = [conditions]
+        for cond in conditions:
+            expanded = expand_template(str(cond), payload, state_context)
+            if not is_truthy(expanded):
+                log.info("  Skipped (condition false: %s): %s", cond, command)
+                return False
 
     if dry_run:
         log.info("  [dry-run] Would execute: %s", command)
+        if stdin_text:
+            log.info("  [dry-run] stdin: %s", stdin_text[:200])
         _process_store(cmd_config, payload, state, state_context, dry_run=True)
         _process_clear(cmd_config, payload, state, dry_run=True)
         return True
@@ -100,18 +161,28 @@ def run_command(
             capture_output=True,
             text=True,
             timeout=300,
+            input=stdin_text,
         )
         if result.stdout:
             log.info("  stdout: %s", result.stdout.rstrip())
         if result.stderr:
             log.warning("  stderr: %s", result.stderr.rstrip())
         if result.returncode != 0:
-            log.error("  Exit code: %d", result.returncode)
+            log.error("  Command failed (exit code %d): %s", result.returncode, command)
             return True
 
         # Store/clear only on success (exit code 0)
-        _process_store(cmd_config, payload, state, state_context)
-        _process_clear(cmd_config, payload, state)
+        log.info("  Command succeeded: %s", command)
+        try:
+            _process_store(cmd_config, payload, state, state_context)
+        except Exception:
+            store_key = cmd_config.get("store", {}).get("key", "?")
+            log.error("  State store failed for key '%s'", store_key)
+        try:
+            _process_clear(cmd_config, payload, state)
+        except Exception:
+            clear_keys = cmd_config.get("clear", [])
+            log.error("  State clear failed for keys %s", clear_keys)
 
         return True
     except subprocess.TimeoutExpired:
