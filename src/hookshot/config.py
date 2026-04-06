@@ -71,11 +71,11 @@ def load_config(path: Path | None = None) -> dict:
             config["worktrees"] = wt
         wt.setdefault("path", ".hookshot/worktrees")
         if "setup" in wt:
-            wt["setup"] = expand_env(str(wt["setup"])) or None
+            wt["setup"] = expand_env(str(wt["setup"])).strip() or None
         else:
             wt["setup"] = None
         if "teardown" in wt:
-            wt["teardown"] = expand_env(str(wt["teardown"])) or None
+            wt["teardown"] = expand_env(str(wt["teardown"])).strip() or None
         else:
             wt["teardown"] = None
 
@@ -162,6 +162,13 @@ def validate_config(config: dict) -> list[str]:
             for key in worktrees:
                 if key not in valid_wt_keys:
                     errors.append(f"worktrees.{key}: unknown key (expected: path, setup, teardown)")
+            wt_path = worktrees.get("path", "")
+            if wt_path and not isinstance(wt_path, str):
+                errors.append("worktrees.path: must be a string")
+            elif isinstance(wt_path, str):
+                normalized = str(Path(wt_path).resolve())
+                if normalized == "/" or ".." in Path(wt_path).parts:
+                    errors.append(f"worktrees.path: unsafe path '{wt_path}'")
 
     # Validate reactions
     reactions = config.get("reactions")

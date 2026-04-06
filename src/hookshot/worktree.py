@@ -7,9 +7,44 @@ from pathlib import Path
 log = logging.getLogger("hookshot")
 
 
+def _git_repo_root() -> Path:
+    """Return the absolute path to the git repository root."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Not a git repository: {result.stderr.rstrip()}")
+    return Path(result.stdout.strip())
+
+
+def _is_valid_worktree(wt_path: Path) -> bool:
+    """Check if a path is a registered git worktree."""
+    result = subprocess.run(
+        ["git", "worktree", "list", "--porcelain"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return False
+
+    abs_path = str(wt_path.resolve())
+    for line in result.stdout.splitlines():
+        if line.startswith("worktree ") and line[9:] == abs_path:
+            return True
+    return False
+
+
 def worktree_path(base_path: str, issue_number: int | str) -> Path:
-    """Return the deterministic worktree path for an issue."""
-    return Path(base_path) / f"issue-{issue_number}"
+    """Return the deterministic worktree path for an issue.
+
+    If base_path is relative, it is resolved relative to the git repo root.
+    """
+    path = Path(base_path)
+    if not path.is_absolute():
+        path = _git_repo_root() / path
+    return path / f"issue-{issue_number}"
 
 
 def ensure_worktree(
@@ -20,16 +55,23 @@ def ensure_worktree(
     """Create a worktree for the given issue if it doesn't already exist.
 
     Returns the worktree path.
+    Raises RuntimeError if worktree creation or setup fails.
     """
     wt_path = worktree_path(base_path, issue_number)
 
-    if wt_path.exists():
+    if wt_path.exists() and _is_valid_worktree(wt_path):
         log.info("Worktree already exists: %s", wt_path)
         return wt_path
 
+    # Directory exists but is not a valid worktree — clean it up
+    if wt_path.exists():
+        log.warning("Directory %s exists but is not a valid worktree, removing", wt_path)
+        import shutil
+        shutil.rmtree(wt_path)
+
     wt_path.parent.mkdir(parents=True, exist_ok=True)
 
-    branch = f"issue-{issue_number}"
+    branch = f"hookshot/issue-{issue_number}"
     log.info("Creating worktree: %s (branch: %s)", wt_path, branch)
 
     result = subprocess.run(
@@ -63,9 +105,9 @@ def ensure_worktree(
             timeout=300,
         )
         if setup_result.returncode != 0:
-            log.warning("Worktree setup command failed: %s", setup_result.stderr.rstrip())
-        else:
-            log.info("Worktree setup complete")
+            log.error("Worktree setup command failed: %s", setup_result.stderr.rstrip())
+            raise RuntimeError(f"Worktree setup failed: {setup_result.stderr.rstrip()}")
+        log.info("Worktree setup complete")
 
     return wt_path
 
@@ -75,7 +117,7 @@ def remove_worktree(
     issue_number: int | str,
     teardown_command: str | None = None,
 ) -> bool:
-    """Remove the worktree for the given issue.
+    """Remove the worktree and its branch for the given issue.
 
     Returns True if the worktree was removed (or didn't exist).
     """
@@ -113,6 +155,18 @@ def remove_worktree(
         return False
 
     log.info("Worktree removed: %s", wt_path)
+
+    # Clean up the branch
+    branch = f"hookshot/issue-{issue_number}"
+    log.info("Deleting branch: %s", branch)
+    branch_result = subprocess.run(
+        ["git", "branch", "-D", branch],
+        capture_output=True,
+        text=True,
+    )
+    if branch_result.returncode != 0:
+        log.warning("Failed to delete branch %s: %s", branch, branch_result.stderr.rstrip())
+
     return True
 
 

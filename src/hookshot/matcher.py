@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 log = logging.getLogger("hookshot")
 
 # Events that trigger worktree cleanup
-_CLOSE_EVENTS = {"issues.closed"}
+_CLOSE_EVENTS = {"issues.closed", "issues.deleted"}
 
 
 def _resolve_worktree_cwd(
@@ -46,12 +46,8 @@ def _resolve_worktree_cwd(
     base_path = worktrees_config["path"]
     setup = worktrees_config.get("setup")
 
-    try:
-        wt_path = ensure_worktree(base_path, issue_number, setup_command=setup)
-        return str(wt_path)
-    except RuntimeError:
-        log.error("Failed to create worktree for issue %s, running in main repo", issue_number)
-        return None
+    wt_path = ensure_worktree(base_path, issue_number, setup_command=setup)
+    return str(wt_path)
 
 
 def _handle_close_worktree(
@@ -108,7 +104,11 @@ def match_and_run(
             matched = True
             log.info("Matched hook: %s → %d command(s)", hook_key, len(commands))
             for i, cmd in enumerate(commands, 1):
-                cwd = _resolve_worktree_cwd(cmd, payload, qualified, worktrees)
+                try:
+                    cwd = _resolve_worktree_cwd(cmd, payload, qualified, worktrees)
+                except RuntimeError:
+                    log.error("  Skipping command %d/%d (worktree creation failed): %s", i, len(commands), cmd.get("command", "?"))
+                    continue
                 log.info("  Running command %d/%d: %s", i, len(commands), cmd.get("command", "?"))
                 if run_command(cmd, payload, dry_run=dry_run, state=state, reactions=reactions, cwd=cwd):
                     executed += 1
