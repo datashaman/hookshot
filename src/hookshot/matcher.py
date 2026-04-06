@@ -79,6 +79,7 @@ def match_and_run(
     state: StateStore | None = None,
     reactions: dict | None = None,
     worktrees: dict | None = None,
+    default_timeout: int | None = None,
 ) -> int:
     """Match a GitHub event against configured hooks and run matching commands.
 
@@ -88,6 +89,9 @@ def match_and_run(
     - "pull_request" matches X-GitHub-Event: pull_request with ANY action
 
     Returns the number of commands executed.
+
+    default_timeout: global command timeout in seconds from config (``timeout``).
+        Per-hook ``timeout`` overrides this; if both are unset, 300s is used.
     """
     action = payload.get("action", "")
     qualified = f"{event}.{action}" if action else None
@@ -110,7 +114,15 @@ def match_and_run(
                     log.error("  Skipping command %d/%d (worktree creation failed): %s", i, len(commands), cmd.get("command", "?"))
                     continue
                 log.info("  Running command %d/%d: %s", i, len(commands), cmd.get("command", "?"))
-                if run_command(cmd, payload, dry_run=dry_run, state=state, reactions=reactions, cwd=cwd):
+                if run_command(
+                    cmd,
+                    payload,
+                    dry_run=dry_run,
+                    state=state,
+                    reactions=reactions,
+                    cwd=cwd,
+                    default_timeout=default_timeout,
+                ):
                     executed += 1
 
     # Handle worktree cleanup on issue close (after commands run)

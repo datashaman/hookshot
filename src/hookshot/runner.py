@@ -7,6 +7,7 @@ import re
 import subprocess
 from typing import TYPE_CHECKING
 
+from .config import DEFAULT_COMMAND_TIMEOUT
 from .reactions import add_reaction, remove_reaction
 
 if TYPE_CHECKING:
@@ -102,6 +103,15 @@ def expand_template(
     return re.sub(r"\$\{\{\s*([^}]+?)\s*\}\}", replacer, template)
 
 
+def resolve_command_timeout(cmd_config: dict, default_timeout: int | None) -> int:
+    """Per-command timeout overrides global default; else fallback seconds."""
+    if "timeout" in cmd_config:
+        return cmd_config["timeout"]
+    if default_timeout is not None:
+        return default_timeout
+    return DEFAULT_COMMAND_TIMEOUT
+
+
 def is_truthy(value: str) -> bool:
     """Evaluate a string for truthiness after template expansion.
 
@@ -119,10 +129,14 @@ def run_command(
     state: StateStore | None = None,
     reactions: dict | None = None,
     cwd: str | None = None,
+    default_timeout: int | None = None,
 ) -> bool:
     """Expand templates in a command config and execute it.
 
     Returns True if the command ran (or would run in dry_run mode).
+
+    default_timeout: seconds when the command has no ``timeout`` key (from global
+        config). Falls back to :data:`hookshot.config.DEFAULT_COMMAND_TIMEOUT`.
     """
     # Load state context
     state_context = None
@@ -149,10 +163,13 @@ def run_command(
                 log.info("  Skipped (condition false: %s): %s", cond, command)
                 return False
 
+    timeout_sec = resolve_command_timeout(cmd_config, default_timeout)
+
     if dry_run:
         log.info("  [dry-run] Would execute: %s", command)
         if cwd:
             log.info("  [dry-run] cwd: %s", cwd)
+        log.info("  [dry-run] timeout: %ds", timeout_sec)
         if stdin_text:
             log.info("  [dry-run] stdin: %s", stdin_text[:200])
         _process_store(cmd_config, payload, state, state_context, dry_run=True)
@@ -174,7 +191,7 @@ def run_command(
             shell=True,
             capture_output=True,
             text=True,
-            timeout=300,
+            timeout=timeout_sec,
             input=stdin_text,
             cwd=cwd,
         )
@@ -203,7 +220,7 @@ def run_command(
         _finish_reactions(payload, reactions, success=True)
         return True
     except subprocess.TimeoutExpired:
-        log.error("  Command timed out after 300s: %s", command)
+        log.error("  Command timed out after %ds: %s", timeout_sec, command)
         _finish_reactions(payload, reactions, success=False)
         return False
     except Exception as e:
