@@ -225,7 +225,15 @@ def cmd_test(args):
     state = StateStore(config.get("state_file"))
     hooks = config.get("hooks", {})
     worktrees = config.get("worktrees")
-    executed = match_and_run(hooks, event, payload, dry_run=True, state=state, worktrees=worktrees)
+    executed = match_and_run(
+        hooks,
+        event,
+        payload,
+        dry_run=True,
+        state=state,
+        worktrees=worktrees,
+        default_timeout=config.get("timeout"),
+    )
     print(f"\nMatched and would execute {executed} command(s)")
 
 

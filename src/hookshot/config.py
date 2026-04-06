@@ -16,6 +16,14 @@ LOCAL_CONFIG_PATH = Path("hookshot.yml")
 DEFAULT_CONFIG_PATH = _CONFIG_DIR / "hooks.yml"
 DEFAULT_STATE_PATH = _DATA_DIR / "state.json"
 
+# Fallback when neither global nor per-command timeout is set (seconds)
+DEFAULT_COMMAND_TIMEOUT = 300
+
+
+def _is_positive_int(value: object) -> bool:
+    """True if value is a positive integer (not bool)."""
+    return type(value) is int and value > 0
+
 
 def expand_env(value: str) -> str:
     """Expand ${ENV_VAR} references in a string."""
@@ -110,6 +118,10 @@ def validate_config(config: dict) -> list[str]:
     if repo and not re.match(r"^[\w.-]+/[\w.-]+$", repo):
         errors.append(f"'repo' must be in owner/name format, got '{repo}'")
 
+    if "timeout" in config and config["timeout"] is not None:
+        if not _is_positive_int(config["timeout"]):
+            errors.append("'timeout' must be a positive integer (seconds)")
+
     hooks = config.get("hooks", {})
     if not isinstance(hooks, dict):
         errors.append("'hooks' must be a mapping of event names to command lists")
@@ -125,6 +137,12 @@ def validate_config(config: dict) -> list[str]:
                 continue
             if "command" not in cmd:
                 errors.append(f"hooks.{event}[{i}]: missing 'command' key")
+
+            if "timeout" in cmd:
+                if not _is_positive_int(cmd["timeout"]):
+                    errors.append(
+                        f"hooks.{event}[{i}].timeout: must be a positive integer (seconds)"
+                    )
 
             # Validate store directive
             if "store" in cmd:

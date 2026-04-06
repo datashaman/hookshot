@@ -7,7 +7,7 @@ from hookshot.reactions import (
     add_reaction,
     remove_reaction,
 )
-from hookshot.runner import run_command, _finish_reactions
+from hookshot.runner import run_command, _finish_reactions, resolve_command_timeout
 from hookshot.config import validate_config
 
 
@@ -244,3 +244,67 @@ def test_validate_reactions_not_a_dict():
 def test_validate_no_reactions_is_valid():
     config = {"hooks": {}}
     assert validate_config(config) == []
+
+
+# --- validate_config timeout ---
+
+def test_validate_timeout_global_valid():
+    assert validate_config({"hooks": {}, "timeout": 600}) == []
+
+
+def test_validate_timeout_global_invalid():
+    errors = validate_config({"hooks": {}, "timeout": -1})
+    assert any("timeout" in e and "positive integer" in e for e in errors)
+
+
+def test_validate_timeout_global_not_bool():
+    errors = validate_config({"hooks": {}, "timeout": True})
+    assert any("timeout" in e for e in errors)
+
+
+def test_validate_timeout_per_command_invalid():
+    errors = validate_config({
+        "hooks": {"push": [{"command": "echo", "timeout": 0}]},
+    })
+    assert any("timeout" in e and "positive integer" in e for e in errors)
+
+
+def test_validate_timeout_per_command_valid():
+    assert validate_config({
+        "hooks": {"push": [{"command": "echo", "timeout": 1800}]},
+    }) == []
+
+
+# --- resolve_command_timeout ---
+
+def test_resolve_command_timeout_precedence():
+    assert resolve_command_timeout({}, None) == 300
+    assert resolve_command_timeout({}, 600) == 600
+    assert resolve_command_timeout({"timeout": 1800}, 600) == 1800
+
+
+# --- run_command timeout ---
+
+@patch("hookshot.runner.subprocess.run")
+def test_run_command_default_timeout_300(mock_subprocess):
+    mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    run_command({"command": "echo hi"}, {})
+    assert mock_subprocess.call_args.kwargs["timeout"] == 300
+
+
+@patch("hookshot.runner.subprocess.run")
+def test_run_command_respects_global_default_timeout(mock_subprocess):
+    mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    run_command({"command": "echo hi"}, {}, default_timeout=600)
+    assert mock_subprocess.call_args.kwargs["timeout"] == 600
+
+
+@patch("hookshot.runner.subprocess.run")
+def test_run_command_per_hook_timeout_overrides_global(mock_subprocess):
+    mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    run_command(
+        {"command": "echo hi", "timeout": 1800},
+        {},
+        default_timeout=600,
+    )
+    assert mock_subprocess.call_args.kwargs["timeout"] == 1800
