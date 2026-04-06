@@ -1,5 +1,6 @@
 """Tests for emoji reactions."""
 
+import io
 from unittest.mock import patch, MagicMock
 
 from hookshot.reactions import (
@@ -275,6 +276,19 @@ def test_validate_timeout_per_command_valid():
     }) == []
 
 
+def test_validate_stream_must_be_boolean():
+    errors = validate_config({
+        "hooks": {"push": [{"command": "echo", "stream": "yes"}]},
+    })
+    assert any("stream" in e and "boolean" in e for e in errors)
+
+
+def test_validate_stream_true_ok():
+    assert validate_config({
+        "hooks": {"push": [{"command": "echo", "stream": True}]},
+    }) == []
+
+
 # --- resolve_command_timeout ---
 
 def test_resolve_command_timeout_precedence():
@@ -308,3 +322,57 @@ def test_run_command_per_hook_timeout_overrides_global(mock_subprocess):
         default_timeout=600,
     )
     assert mock_subprocess.call_args.kwargs["timeout"] == 1800
+
+
+# --- run_command stream ---
+
+@patch("hookshot.runner.subprocess.Popen")
+@patch("hookshot.runner.subprocess.run")
+def test_run_command_non_stream_uses_run_not_popen(mock_run, mock_popen):
+    """Default path keeps subprocess.run (no streaming)."""
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    run_command({"command": "echo hi"}, {})
+    mock_run.assert_called_once()
+    mock_popen.assert_not_called()
+
+
+@patch("hookshot.runner.subprocess.Popen")
+@patch("hookshot.runner.subprocess.run")
+def test_run_command_stream_uses_popen(mock_run, mock_popen):
+    mock_proc = MagicMock()
+    mock_proc.stdout = io.StringIO("out\n")
+    mock_proc.stderr = io.StringIO("")
+    mock_proc.stdin = None
+    mock_proc.wait = MagicMock(return_value=None)
+    mock_proc.returncode = 0
+    mock_popen.return_value = mock_proc
+
+    run_command({"command": "echo hi", "stream": True}, {})
+
+    mock_popen.assert_called_once()
+    mock_run.assert_not_called()
+
+
+@patch("hookshot.runner.add_reaction")
+@patch("hookshot.runner.remove_reaction")
+def test_run_command_stream_real_process_logs_lines(mock_remove, mock_add, caplog, capsys):
+    import logging
+
+    caplog.set_level(logging.INFO)
+    run_command(
+        {
+            "command": 'python -c "import sys; print(\\"a\\"); print(\\"b\\")"',
+            "stream": True,
+        },
+        {},
+    )
+    out_lines = [
+        r.hookshot_line
+        for r in caplog.records
+        if getattr(r, "hookshot_subprocess", False) and r.hookshot_stream == "stdout"
+    ]
+    assert "a" in out_lines
+    assert "b" in out_lines
+    captured = capsys.readouterr()
+    assert "a" in captured.out
+    assert "b" in captured.out
