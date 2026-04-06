@@ -144,6 +144,9 @@ def validate_config(config: dict) -> list[str]:
                         f"hooks.{event}[{i}].timeout: must be a positive integer (seconds)"
                     )
 
+            if "stream" in cmd and not isinstance(cmd["stream"], bool):
+                errors.append(f"hooks.{event}[{i}].stream: must be a boolean")
+
             # Validate store directive
             if "store" in cmd:
                 store = cmd["store"]
