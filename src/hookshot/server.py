@@ -60,16 +60,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
             self.wfile.write(b"Invalid JSON")
             return
 
-        action = payload.get("action", "-")
-        log.info("Received event: %s (action: %s)", event, action)
-
         hooks = self.server.hookshot_config.get("hooks", {})
         executed = match_and_run(hooks, event, payload, state=self.server.hookshot_state)
-
-        if executed:
-            log.info("Event %s (action: %s) → %d command(s) executed", event, action, executed)
-        else:
-            log.info("Event %s (action: %s) → no matching hooks", event, action)
 
         self.send_response(200)
         self.end_headers()
@@ -130,7 +122,9 @@ def serve(config: dict):
 class GhForwardSupervisor:
     """Monitor and auto-restart the gh webhook forward process."""
 
-    RESTART_DELAY = 5  # seconds between restarts
+    INITIAL_DELAY = 5  # seconds before first restart
+    MAX_DELAY = 300  # cap backoff at 5 minutes
+    MAX_RETRIES = 10  # give up after this many consecutive failures
 
     def __init__(self, config: dict, port: int):
         self.config = config
@@ -153,16 +147,34 @@ class GhForwardSupervisor:
             self._proc.wait()
 
     def _watch(self):
+        consecutive_failures = 0
+        delay = self.INITIAL_DELAY
         while self._running:
             if self._proc and self._proc.poll() is not None:
                 rc = self._proc.returncode
-                log.warning("gh webhook forward exited (code %d), restarting in %ds...", rc, self.RESTART_DELAY)
-                time.sleep(self.RESTART_DELAY)
+                consecutive_failures += 1
+                if consecutive_failures > self.MAX_RETRIES:
+                    log.error(
+                        "gh webhook forward failed %d times consecutively, giving up",
+                        consecutive_failures,
+                    )
+                    return
+                log.warning(
+                    "gh webhook forward exited (code %d), restarting in %ds (attempt %d/%d)...",
+                    rc, delay, consecutive_failures, self.MAX_RETRIES,
+                )
+                time.sleep(delay)
+                delay = min(delay * 2, self.MAX_DELAY)
                 if self._running:
                     try:
                         self._proc = _start_gh_forward(self.config, self.port)
                     except Exception as e:
                         log.error("Failed to restart gh webhook forward: %s", e)
+            else:
+                # Process is still running — reset failure tracking
+                if consecutive_failures > 0:
+                    consecutive_failures = 0
+                    delay = self.INITIAL_DELAY
             time.sleep(1)
 
 

@@ -76,8 +76,10 @@ def get_events(config: dict) -> list[str]:
     """
     events = set()
     for hook_key in config.get("hooks", {}):
-        base_event = hook_key.split(".")[0]
-        events.add(base_event)
+        # Support comma-separated event keys
+        for key in hook_key.split(","):
+            base_event = key.strip().split(".")[0]
+            events.add(base_event)
     return sorted(events)
 
 

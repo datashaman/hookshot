@@ -33,20 +33,23 @@ def match_and_run(
     action = payload.get("action", "")
     qualified = f"{event}.{action}" if action else None
 
+    matched = False
     executed = 0
 
     log.info("Processing event: %s (action: %s)", event, action or "-")
 
     for hook_key, commands in hooks.items():
-        # Match: exact qualified name, or bare event name
-        if hook_key == qualified or hook_key == event:
+        # Support comma-separated event keys (e.g. "pull_request.opened,pull_request.reopened")
+        hook_events = [k.strip() for k in hook_key.split(",")]
+        if any(k == qualified or k == event for k in hook_events):
+            matched = True
             log.info("Matched hook: %s → %d command(s)", hook_key, len(commands))
             for i, cmd in enumerate(commands, 1):
                 log.info("  Running command %d/%d: %s", i, len(commands), cmd.get("command", "?"))
                 if run_command(cmd, payload, dry_run=dry_run, state=state):
                     executed += 1
 
-    if not executed:
+    if not matched:
         log.info("No hooks matched event: %s", qualified or event)
 
     return executed
