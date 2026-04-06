@@ -20,7 +20,8 @@ Unknown keys → validation error.
 ## Behavior summary
 
 - Worktree path: `<path>/issue-<number>` (see `hookshot.worktree`).
-- Creation is tied to issue number extraction from payload and presence of `load` on the command (see [How-to: worktrees](../how-to/use-worktrees-per-issue.md)).
+- Issue number comes **only** from `payload["issue"]["number"]` (`extract_issue_number`). PR-only events without an `issue` key never get a worktree path.
+- Creation is tied to that extraction and presence of `load` on the command (see [How-to: worktrees](../how-to/use-worktrees-per-issue.md)).
 - `issues.closed` / `issues.deleted` trigger teardown path without creating a worktree for that run.
 
 ## See also

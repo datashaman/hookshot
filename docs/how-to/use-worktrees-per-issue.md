@@ -7,7 +7,7 @@
 Worktrees apply only when **all** of the following hold:
 
 1. Top-level `worktrees` is configured.
-2. The webhook payload includes an issue number Hookshot can extract.
+2. The webhook payload is **issue-shaped**: it includes a top-level `issue` object with `number` (for example `issue_comment` on an issue, or payloads that nest the issue under `issue`). Payloads that only carry pull-request context under `pull_request` — with no `issue` object — do **not** yield an issue number, so the command **`cwd` never switches** to a worktree even when `worktrees` and `load` are set.
 3. The hook command has a **`load` directive** (issue-context-aware commands).
 4. The event is not `issues.closed` / `issues.deleted` for **creation** (close events skip creating a worktree; cleanup still runs).
 

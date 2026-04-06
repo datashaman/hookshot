@@ -14,6 +14,9 @@ hooks:
 ## All conditions must pass (AND)
 
 ```yaml
+hooks:
+  issue_comment.created:
+    - command: "./handle.sh"
       if:
         - "${{ sender.type | neq Bot }}"
         - "${{ comment.body | contains @implement }}"

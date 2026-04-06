@@ -48,3 +48,5 @@ Documentation is organized by the [Diátaxis](https://diataxis.fr/) framework: f
 ---
 
 Example config for this repository: [`hookshot.yml`](../hookshot.yml) in the repo root.
+
+Copy-paste **examples** that are checked in CI against `load_config` / `validate_config`: [`docs/examples/`](examples/) (`*.yml`).

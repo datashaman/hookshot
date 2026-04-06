@@ -1,0 +1,8 @@
+# Example: AND list for `if` (see how-to/gate-on-markers.md).
+hooks:
+  issue_comment.created:
+    - command: "./handle.sh"
+      if:
+        - "${{ sender.type | neq Bot }}"
+        - "${{ comment.body | contains @implement }}"
+        - "${{ comment.body | not_contains hookshot:agent }}"

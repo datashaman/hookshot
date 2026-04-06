@@ -1,0 +1,4 @@
+# Valid example: smallest useful config (used by tests — keep in sync with validate_config).
+hooks:
+  ping:
+    - command: "echo ok"
