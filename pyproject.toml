@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hookshot"
+version = "0.1.0"
+description = "GitHub webhook receiver that runs shell commands from a YAML config"
+requires-python = ">=3.10"
+dependencies = ["pyyaml>=6.0"]
+
+[project.scripts]
+hookshot = "hookshot.__main__:main"
