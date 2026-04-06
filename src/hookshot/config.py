@@ -4,9 +4,15 @@ import os
 import re
 from pathlib import Path
 
+import platformdirs
 import yaml
 
-DEFAULT_CONFIG_PATH = Path.home() / ".config" / "hookshot" / "hooks.yml"
+_CONFIG_DIR = Path(platformdirs.user_config_dir("hookshot"))
+_DATA_DIR = Path(platformdirs.user_data_dir("hookshot"))
+
+LOCAL_CONFIG_PATH = Path("hookshot.yml")
+DEFAULT_CONFIG_PATH = _CONFIG_DIR / "hooks.yml"
+DEFAULT_STATE_PATH = _DATA_DIR / "state.json"
 
 
 def expand_env(value: str) -> str:
@@ -18,9 +24,16 @@ def expand_env(value: str) -> str:
     )
 
 
+def find_config() -> Path:
+    """Find the config file: ./hookshot.yml first, then global default."""
+    if LOCAL_CONFIG_PATH.exists():
+        return LOCAL_CONFIG_PATH
+    return DEFAULT_CONFIG_PATH
+
+
 def load_config(path: Path | None = None) -> dict:
     """Load and validate the hooks config file."""
-    path = path or DEFAULT_CONFIG_PATH
+    path = path or find_config()
 
     if not path.exists():
         raise FileNotFoundError(f"Config not found: {path}")
@@ -35,6 +48,12 @@ def load_config(path: Path | None = None) -> dict:
     if "secret" in config:
         config["secret"] = expand_env(str(config["secret"]))
 
+    # Expand env vars in state_file and resolve to Path
+    if "state_file" in config:
+        config["state_file"] = Path(expand_env(str(config["state_file"])))
+    else:
+        config["state_file"] = DEFAULT_STATE_PATH
+
     # Defaults
     config.setdefault("listen", {})
     config["listen"].setdefault("host", "0.0.0.0")
@@ -42,15 +61,34 @@ def load_config(path: Path | None = None) -> dict:
 
     config.setdefault("hooks", {})
 
+    # Expand env vars in repo
+    if "repo" in config:
+        config["repo"] = expand_env(str(config["repo"]))
+
     return config
+
+
+def get_events(config: dict) -> list[str]:
+    """Extract the unique base GitHub event names from configured hooks.
+
+    Qualified names like "pull_request.closed" are mapped back to "pull_request"
+    since GitHub subscribes at the event level, not the action level.
+    """
+    events = set()
+    for hook_key in config.get("hooks", {}):
+        base_event = hook_key.split(".")[0]
+        events.add(base_event)
+    return sorted(events)
 
 
 def validate_config(config: dict) -> list[str]:
     """Return a list of validation errors (empty = valid)."""
     errors = []
 
-    if not config.get("secret"):
-        errors.append("'secret' is required (use ${ENV_VAR} for env expansion)")
+    # repo format: owner/name
+    repo = config.get("repo", "")
+    if repo and not re.match(r"^[\w.-]+/[\w.-]+$", repo):
+        errors.append(f"'repo' must be in owner/name format, got '{repo}'")
 
     hooks = config.get("hooks", {})
     if not isinstance(hooks, dict):
@@ -67,5 +105,31 @@ def validate_config(config: dict) -> list[str]:
                 continue
             if "command" not in cmd:
                 errors.append(f"hooks.{event}[{i}]: missing 'command' key")
+
+            # Validate store directive
+            if "store" in cmd:
+                store = cmd["store"]
+                if not isinstance(store, dict):
+                    errors.append(f"hooks.{event}[{i}].store: must be a mapping")
+                elif "key" not in store:
+                    errors.append(f"hooks.{event}[{i}].store: missing 'key'")
+                elif not isinstance(store.get("values", {}), dict):
+                    errors.append(f"hooks.{event}[{i}].store.values: must be a mapping")
+                elif "values" not in store and "log" not in store:
+                    errors.append(f"hooks.{event}[{i}].store: needs 'values' and/or 'log'")
+
+            # Validate load directive
+            if "load" in cmd:
+                load = cmd["load"]
+                if not isinstance(load, dict):
+                    errors.append(f"hooks.{event}[{i}].load: must be a mapping")
+                elif "key" not in load:
+                    errors.append(f"hooks.{event}[{i}].load: missing 'key'")
+
+            # Validate clear directive
+            if "clear" in cmd:
+                clear = cmd["clear"]
+                if not isinstance(clear, list):
+                    errors.append(f"hooks.{event}[{i}].clear: must be a list")
 
     return errors

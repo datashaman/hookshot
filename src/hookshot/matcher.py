@@ -1,8 +1,14 @@
 """Event matching logic."""
 
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
 from .runner import run_command
+
+if TYPE_CHECKING:
+    from .state import StateStore
 
 log = logging.getLogger("hookshot")
 
@@ -13,6 +19,7 @@ def match_and_run(
     payload: dict,
     *,
     dry_run: bool = False,
+    state: StateStore | None = None,
 ) -> int:
     """Match a GitHub event against configured hooks and run matching commands.
 
@@ -33,7 +40,7 @@ def match_and_run(
         if hook_key == qualified or hook_key == event:
             log.info("Matched hook: %s", hook_key)
             for cmd in commands:
-                if run_command(cmd, payload, dry_run=dry_run):
+                if run_command(cmd, payload, dry_run=dry_run, state=state):
                     executed += 1
 
     return executed
