@@ -18,6 +18,15 @@ if TYPE_CHECKING:
 log = logging.getLogger("hookshot")
 
 
+def _to_string(value: object) -> str:
+    """Convert a resolved value to its string representation."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
 def _emit_subprocess_line(stream: str, line: str) -> None:
     """Human-readable terminal output plus structured log line (file only).
 
@@ -50,25 +59,52 @@ def _emit_subprocess_blob(stream: str, blob: str) -> None:
         _emit_subprocess_line(stream, part + "\n")
 
 
-def resolve_dotpath(payload: dict, path: str) -> str:
+def resolve_dotpath(payload: dict, path: str) -> str | list:
     """Resolve a dot-separated path into a JSON payload.
 
-    Returns the value as a string, or empty string if not found.
+    Supports wildcard notation: ``issue.labels.*.name`` extracts the
+    ``name`` field from each element when the preceding segment is a list.
+
+    Only a single ``*`` segment is supported. Multiple wildcards (e.g.
+    ``a.*.b.*.c``) log a warning and return an empty string.
+
+    Returns a list when a wildcard is used, otherwise a string (or empty
+    string if the path is not found).
     """
-    current = payload
-    for key in path.split("."):
-        if isinstance(current, dict) and key in current:
+    keys = path.split(".")
+    if keys.count("*") > 1:
+        log.warning(
+            "Multiple wildcards in dotpath '%s' are not supported; "
+            "only a single '*' segment is allowed",
+            path,
+        )
+        return ""
+
+    current: object = payload
+    saw_wildcard = False
+    for key in keys:
+        if key == "*":
+            if not isinstance(current, list):
+                return ""
+            saw_wildcard = True
+            continue
+        if isinstance(current, list) and saw_wildcard:
+            extracted = []
+            for item in current:
+                if isinstance(item, dict) and key in item:
+                    extracted.append(item[key])
+            current = extracted
+        elif isinstance(current, dict) and key in current:
             current = current[key]
         else:
             return ""
-    if current is None:
-        return ""
-    if isinstance(current, bool):
-        return "true" if current else "false"
-    return str(current)
+
+    if isinstance(current, list):
+        return [_to_string(v) for v in current]
+    return _to_string(current)
 
 
-def apply_filter(value: str, filter_expr: str) -> str:
+def apply_filter(value: str | list, filter_expr: str) -> str:
     """Apply a pipe filter to a resolved value.
 
     Supported filters:
@@ -78,10 +114,30 @@ def apply_filter(value: str, filter_expr: str) -> str:
         neq <arg>           → "true" if value does NOT equal arg (case-insensitive)
         lower               → lowercase
         upper               → uppercase
+        any <arg>           → "true" if any element in a list equals arg (case-insensitive)
+        none <arg>          → "true" if no element in a list equals arg (case-insensitive)
     """
     parts = filter_expr.strip().split(None, 1)
     name = parts[0]
     arg = parts[1] if len(parts) > 1 else ""
+
+    if name == "any":
+        if isinstance(value, list):
+            return "true" if any(str(v).lower() == arg.lower() for v in value) else "false"
+        return "true" if str(value).lower() == arg.lower() else "false"
+    elif name == "none":
+        if isinstance(value, list):
+            return "true" if not any(str(v).lower() == arg.lower() for v in value) else "false"
+        return "true" if str(value).lower() != arg.lower() else "false"
+
+    # String-only filters: stringify lists for backwards compatibility
+    if isinstance(value, list):
+        log.warning(
+            "Filter '%s' stringifies list values; consider using 'any' or 'none' "
+            "for element-wise matching",
+            name,
+        )
+        value = str(value)
 
     if name == "contains":
         return "true" if arg.lower() in value.lower() else "false"
@@ -110,7 +166,7 @@ def expand_template(
     Paths starting with "state." resolve from state_context instead.
     Pipe filters are applied after value resolution.
     """
-    def replacer(m):
+    def replacer(m: re.Match[str]) -> str:
         expr = m.group(1).strip()
 
         # Split on first pipe to separate path from filter
@@ -121,18 +177,21 @@ def expand_template(
             path = expr
             filter_expr = None
 
-        # Resolve value
+        # Resolve value (may be str or list when wildcards are used)
         if path.startswith("state.") and state_context is not None:
             state_key = path[len("state."):]
-            value = state_context.get(state_key, "")
+            resolved: str | list[str] = str(state_context.get(state_key, ""))
         else:
-            value = resolve_dotpath(payload, path)
+            resolved = resolve_dotpath(payload, path)
 
         # Apply filter if present
         if filter_expr:
-            value = apply_filter(value, filter_expr)
+            return apply_filter(resolved, filter_expr)
 
-        return value
+        # No filter — stringify for substitution
+        if isinstance(resolved, list):
+            return str(resolved)
+        return resolved
 
     return re.sub(r"\$\{\{\s*([^}]+?)\s*\}\}", replacer, template)
 

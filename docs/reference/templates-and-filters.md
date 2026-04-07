@@ -13,6 +13,19 @@ ${{ dot.path | filter arg }}
 - Booleans → `"true"` / `"false"`.
 - `null` → empty string.
 
+### Wildcard notation
+
+Use `*` to extract a field from each element of an array:
+
+```
+${{ issue.labels.*.name }}          → ['bug', 'enhancement']
+${{ issue.labels.*.name | any bug }}  → "true"
+```
+
+- Only a **single** `*` segment is supported. Multiple wildcards (e.g. `a.*.b.*.c`) log a warning and resolve to an empty string.
+- Wildcard results are lists — use `any` or `none` filters for element-wise matching.
+- `state.*` paths always resolve to strings (state is a flat key-value store), so wildcard notation does not apply to state paths.
+
 ## Pipe filters
 
 | Filter | Arguments | Result |
@@ -23,8 +36,12 @@ ${{ dot.path | filter arg }}
 | `neq` | word | `"true"` if value does **not** equal arg |
 | `lower` | — | Lowercase |
 | `upper` | — | Uppercase |
+| `any` | word | `"true"` if any list element equals arg (case-insensitive). Falls back to `eq` for strings. |
+| `none` | word | `"true"` if **no** list element equals arg (case-insensitive). Falls back to `neq` for strings. |
 
 Unknown filter names log a warning and return the pre-filter value unchanged (implementation detail).
+
+> **Note:** Applying `contains` or `not_contains` to a wildcard (list) result stringifies the list using Python's repr and does substring matching on that string. This is rarely what you want — use `any` or `none` for element-wise matching instead. A warning is logged when this happens.
 
 ### Truthiness for `if`
 
