@@ -7,12 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-import yaml
-
 from .config import LOCAL_CONFIG_PATH, get_events, load_config, validate_config
 from .matcher import match_and_run
 from .server import serve
 from .state import StateStore
+from .templates import AVAILABLE_WORKFLOWS, generate_template
 
 
 class _HookshotFileFormatter(logging.Formatter):
@@ -72,7 +71,18 @@ def main():
     )
 
     # init
-    sub.add_parser("init", help="Create a starter hookshot.yml config")
+    init_parser = sub.add_parser("init", help="Create a starter hookshot.yml config")
+    init_parser.add_argument(
+        "--workflow", "-w",
+        choices=AVAILABLE_WORKFLOWS,
+        default=None,
+        help="Workflow template (pr-review, issue-triage, full)",
+    )
+    init_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing config file",
+    )
 
     # state
     state_parser = sub.add_parser("state", help="Inspect and manage state")
@@ -137,8 +147,8 @@ def _detect_repo() -> str | None:
 def cmd_init(args):
     config_path = args.config or LOCAL_CONFIG_PATH
 
-    if config_path.exists():
-        print(f"Config already exists: {config_path}", file=sys.stderr)
+    if config_path.exists() and not args.force:
+        print(f"Config already exists: {config_path} (use --force to overwrite)", file=sys.stderr)
         sys.exit(1)
 
     repo = _detect_repo()
@@ -151,24 +161,27 @@ def cmd_init(args):
             print("Aborted.", file=sys.stderr)
             sys.exit(1)
 
-    config = {
-        "repo": repo,
-        "hooks": {
-            "issues.opened": [
-                {"command": "echo 'New issue #${{ issue.number }}: ${{ issue.title }}'"}
-            ],
-            "push": [
-                {"command": "echo 'Push to ${{ repository.full_name }} on ${{ ref }}'"}
-            ],
-        },
-    }
+    workflow = args.workflow
+    if not workflow:
+        print("\nAvailable workflows:")
+        print("  pr-review     — adversarial PR review with reviewer/implementer loop")
+        print("  issue-triage  — issue analysis, conversation, and @implement trigger")
+        print("  full          — combines both workflows (recommended)")
+        print()
+        workflow = input("Choose a workflow [full]: ").strip() or "full"
+        if workflow not in AVAILABLE_WORKFLOWS:
+            print(f"Unknown workflow: {workflow}", file=sys.stderr)
+            sys.exit(1)
+
+    content = generate_template(workflow, repo)
 
     config_path.parent.mkdir(parents=True, exist_ok=True)
     with open(config_path, "w") as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+        f.write(content)
 
-    print(f"Created {config_path}")
-    print("Edit the hooks to match your needs, then run: hookshot serve")
+    print(f"Created {config_path} with '{workflow}' workflow")
+    print("Run: hookshot validate")
+    print("Then: hookshot serve")
 
 
 def cmd_validate(args):
