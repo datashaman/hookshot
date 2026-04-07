@@ -27,6 +27,38 @@ def _to_string(value: object) -> str:
     return str(value)
 
 
+def _emit_subprocess_line(stream: str, line: str) -> None:
+    """Human-readable terminal output plus structured log line (file only).
+
+    Stdout/stderr from hook commands are printed without log prefixes so the CLI
+    mirrors a normal shell. The same line is logged for hookshot.log as JSON
+    (see :class:`hookshot.__main__._HookshotFileFormatter`).
+    """
+    text = line.rstrip("\r\n")
+    if stream == "stdout":
+        print(text, file=sys.stdout, flush=True)
+    else:
+        print(text, file=sys.stderr, flush=True)
+    level = logging.WARNING if stream == "stderr" else logging.INFO
+    log.log(
+        level,
+        "subprocess output",
+        extra={
+            "hookshot_subprocess": True,
+            "hookshot_stream": stream,
+            "hookshot_line": text,
+        },
+    )
+
+
+def _emit_subprocess_blob(stream: str, blob: str) -> None:
+    """Emit captured stdout/stderr block line-by-line (non-streaming path)."""
+    if not blob:
+        return
+    for part in blob.splitlines():
+        _emit_subprocess_line(stream, part + "\n")
+
+
 def resolve_dotpath(payload: dict, path: str) -> str | list:
     """Resolve a dot-separated path into a JSON payload.
 
@@ -171,38 +203,6 @@ def resolve_command_timeout(cmd_config: dict, default_timeout: int | None) -> in
     if default_timeout is not None:
         return default_timeout
     return DEFAULT_COMMAND_TIMEOUT
-
-
-def _emit_subprocess_line(stream: str, line: str) -> None:
-    """Human-readable terminal output plus structured log line (file only).
-
-    Stdout/stderr from hook commands are printed without log prefixes so the CLI
-    mirrors a normal shell. The same line is logged for hookshot.log as JSON
-    (see :class:`hookshot.__main__._HookshotFileFormatter`).
-    """
-    text = line.rstrip("\r\n")
-    if stream == "stdout":
-        print(text, file=sys.stdout, flush=True)
-    else:
-        print(text, file=sys.stderr, flush=True)
-    level = logging.WARNING if stream == "stderr" else logging.INFO
-    log.log(
-        level,
-        "subprocess output",
-        extra={
-            "hookshot_subprocess": True,
-            "hookshot_stream": stream,
-            "hookshot_line": text,
-        },
-    )
-
-
-def _emit_subprocess_blob(stream: str, blob: str) -> None:
-    """Emit captured stdout/stderr block line-by-line (non-streaming path)."""
-    if not blob:
-        return
-    for part in blob.splitlines():
-        _emit_subprocess_line(stream, part + "\n")
 
 
 def _run_command_streaming(
