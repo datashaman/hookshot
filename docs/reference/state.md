@@ -23,6 +23,17 @@ All reads and writes use the same pattern: open a sidecar lock file, `flock(LOCK
 
 Corrupt JSON is renamed to `*.corrupt.<unixtime>` and the store starts empty.
 
+## Size limits
+
+To prevent unbounded growth, state enforces two limits:
+
+| Constant | Value | Effect |
+|----------|-------|--------|
+| `MAX_LOG_ENTRY_LENGTH` | 500 chars | Log entries longer than this are truncated and suffixed with `…`. |
+| `MAX_CONTEXT_LENGTH` | 4000 chars | `state.context` (the joined log exposed to templates) keeps only the **newest** entries that fit within this budget. Older entries are silently dropped. |
+
+Truncation happens at write time (for individual entries) and at read time (for context assembly). Values stored via `store.values` are not subject to these limits.
+
 ## Directives
 
 | Directive | When it runs |
