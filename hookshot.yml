@@ -111,11 +111,15 @@ hooks:
              Missing or inadequate test coverage is a blocking issue, not a nice-to-have.
              Run the test suite (uv run pytest) and report the results.
            - Anything the author clearly forgot
-        6. Post your review as a PR review comment. You MUST include the marker
-           <!-- hookshot:reviewer --> at the end of your review body:
-           gh pr review ${{ issue.number }} --repo ${{ repository.full_name }} --body '<your review>
+        6. Post your review:
+           - If the PR needs changes, post with the reviewer marker:
+             gh pr review ${{ issue.number }} --repo ${{ repository.full_name }} --body '<your review>
 
-           <!-- hookshot:reviewer -->' --comment
+             <!-- hookshot:reviewer -->' --comment
+           - If the PR is already good and needs no changes, approve with the approval marker:
+             gh pr review ${{ issue.number }} --repo ${{ repository.full_name }} --approve --body '<your review>
+
+             <!-- hookshot:approved -->'
 
         Be direct. No praise sandwiches. If something is fine, skip it.
         Focus on what's wrong or risky.
@@ -231,11 +235,15 @@ hooks:
              Missing or inadequate test coverage is a blocking issue, not a nice-to-have.
              Run the test suite (uv run pytest) and report the results.
            - Anything the author clearly forgot
-        6. Post your review as a PR review comment. You MUST include the marker
-           <!-- hookshot:reviewer --> at the end of your review body:
-           gh pr review ${{ pull_request.number }} --repo ${{ repository.full_name }} --body '<your review>
+        6. Post your review:
+           - If the PR needs changes, post with the reviewer marker:
+             gh pr review ${{ pull_request.number }} --repo ${{ repository.full_name }} --body '<your review>
 
-           <!-- hookshot:reviewer -->' --comment
+             <!-- hookshot:reviewer -->' --comment
+           - If the PR is already good and needs no changes, approve with the approval marker:
+             gh pr review ${{ pull_request.number }} --repo ${{ repository.full_name }} --approve --body '<your review>
+
+             <!-- hookshot:approved -->'
 
         Be direct. No praise sandwiches. If something is fine, skip it.
         Focus on what's wrong or risky.
@@ -292,6 +300,7 @@ hooks:
            <!-- hookshot:implementer -->' --comment
       if:
         - "${{ review.body | contains hookshot:reviewer }}"
+        - "${{ review.body | not_contains hookshot:approved }}"
       load:
         key: "pr:${{ repository.full_name }}:${{ pull_request.number }}"
       store:
@@ -320,8 +329,10 @@ hooks:
         2. Check each point from your original review — was it actually fixed?
         3. Look for any new issues introduced by the fixes
         4. Run the test suite (uv run pytest) and verify all tests pass
-        5. If everything looks good and tests pass, approve the PR:
-           gh pr review ${{ pull_request.number }} --repo ${{ repository.full_name }} --approve --body '<your response>'
+        5. If everything looks good and tests pass, approve the PR with the approval marker:
+           gh pr review ${{ pull_request.number }} --repo ${{ repository.full_name }} --approve --body '<your response>
+
+           <!-- hookshot:approved -->'
         6. If there are still issues or tests fail, post another review with the marker:
            gh pr review ${{ pull_request.number }} --repo ${{ repository.full_name }} --body '<your response>
 
@@ -330,6 +341,7 @@ hooks:
         Be honest. If it's fixed, say so and approve. If not, be specific about what's still wrong.
       if:
         - "${{ review.body | contains hookshot:implementer }}"
+        - "${{ review.body | not_contains hookshot:approved }}"
       load:
         key: "pr:${{ repository.full_name }}:${{ pull_request.number }}"
       store:

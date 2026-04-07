@@ -237,3 +237,36 @@ def test_expand_template_list_with_string_filter():
     payload = {"items": [{"x": "hello"}, {"x": "world"}]}
     result = expand_template("${{ items.*.x | contains hello }}", payload)
     assert result == "true"
+
+
+# --- Review loop termination (issue #29) ---
+
+
+def test_approved_marker_blocks_implementer():
+    """Review body with both hookshot:reviewer and hookshot:approved should not trigger implementer."""
+    body = "Looks good!\n\n<!-- hookshot:reviewer -->\n<!-- hookshot:approved -->"
+    # Implementer fires on: contains hookshot:reviewer AND not_contains hookshot:approved
+    assert apply_filter(body, "contains hookshot:reviewer") == "true"
+    assert apply_filter(body, "not_contains hookshot:approved") == "false"  # blocked
+
+
+def test_approved_marker_blocks_followup_reviewer():
+    """Review body with both hookshot:implementer and hookshot:approved should not trigger reviewer."""
+    body = "All fixed!\n\n<!-- hookshot:implementer -->\n<!-- hookshot:approved -->"
+    # Follow-up reviewer fires on: contains hookshot:implementer AND not_contains hookshot:approved
+    assert apply_filter(body, "contains hookshot:implementer") == "true"
+    assert apply_filter(body, "not_contains hookshot:approved") == "false"  # blocked
+
+
+def test_reviewer_marker_without_approved_triggers_implementer():
+    """Normal review (no approval) should still trigger the implementer."""
+    body = "Fix these bugs.\n\n<!-- hookshot:reviewer -->"
+    assert apply_filter(body, "contains hookshot:reviewer") == "true"
+    assert apply_filter(body, "not_contains hookshot:approved") == "true"  # passes
+
+
+def test_implementer_marker_without_approved_triggers_reviewer():
+    """Normal implementer response should still trigger follow-up reviewer."""
+    body = "Fixed everything.\n\n<!-- hookshot:implementer -->"
+    assert apply_filter(body, "contains hookshot:implementer") == "true"
+    assert apply_filter(body, "not_contains hookshot:approved") == "true"  # passes
