@@ -13,7 +13,7 @@
 ```yaml
 hooks:
   issues.opened:
-    - command: "claude -p --dangerously-skip-permissions"
+    - command: "claude -p --dangerously-skip-permissions --model sonnet"
       stdin: |
         Issue #${{ issue.number }}: ${{ issue.title }}
         ${{ issue.body }}
