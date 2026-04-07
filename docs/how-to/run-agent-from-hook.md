@@ -21,6 +21,32 @@ hooks:
 
 Template rules: [Templates and filters](../reference/templates-and-filters.md).
 
+## Reusable agents
+
+When multiple hooks share the same command and base prompt, define an `agents` block to avoid repetition:
+
+```yaml
+agents:
+  reviewer:
+    command: "claude -p --model opus"
+    stdin: |
+      You are a code reviewer. Be thorough and constructive.
+
+hooks:
+  pull_request.opened:
+    - agent: reviewer
+      stdin: |
+        Review PR #${{ pull_request.number }}: ${{ pull_request.title }}
+  pull_request.synchronize:
+    - agent: reviewer
+      stdin: |
+        Re-review PR #${{ pull_request.number }} after new commits.
+```
+
+The agent's base `stdin` is prepended to each hook's `stdin`. The agent's `command` is used automatically. See [Configuration: Agents](../reference/configuration.md#agents) for the full reference.
+
+To generate a complete config with predefined agents, run `hookshot init --workflow` — see [CLI: init](../reference/cli.md#init).
+
 ## Practical tips
 
 - **Idempotency:** If the agent posts back to GitHub, use a marker comment (HTML or unique string) and an `if` condition with `not_contains` so you do not loop. See [Gate hooks on markers](gate-on-markers.md).

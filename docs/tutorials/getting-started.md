@@ -35,9 +35,23 @@ In an empty or existing project directory:
 hookshot init
 ```
 
-If `gh repo view` works, Hookshot fills in `repo`; otherwise it prompts for `owner/name`.
+Hookshot detects `owner/repo` via `gh repo view` (or prompts for it), then asks you to choose a workflow template:
 
-**Checkpoint:** `hookshot.yml` exists and contains at least `repo` (if you chose one) and `hooks`.
+| Workflow | What it sets up |
+|----------|-----------------|
+| `pr-review` | Adversarial PR review with reviewer/implementer feedback loop. |
+| `issue-triage` | Issue analysis, conversation, and `@implement` trigger handling. |
+| `full` | Combines both workflows (recommended). |
+
+You can skip the interactive prompt by passing the workflow directly:
+
+```bash
+hookshot init --workflow full
+```
+
+Use `--force` to overwrite an existing config file.
+
+**Checkpoint:** `hookshot.yml` exists and contains `repo`, `agents`, and `hooks` sections.
 
 ## Step 3: Validate
 

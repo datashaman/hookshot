@@ -25,6 +25,30 @@ hooks:
 
 After template expansion, Hookshot treats these strings as truthy/falsy. Rules: [Templates and filters](../reference/templates-and-filters.md#truthiness-for-if).
 
+## Breaking review loops
+
+The generated workflow templates use HTML comment markers to coordinate multi-agent feedback loops. Four markers are conventional:
+
+| Marker | Purpose |
+|--------|---------|
+| `<!-- hookshot:agent -->` | Generic bot marker — all agent comments include this to prevent self-triggering. |
+| `<!-- hookshot:reviewer -->` | Identifies a review submitted by the reviewer agent. |
+| `<!-- hookshot:implementer -->` | Identifies a comment from the implementer agent. |
+| `<!-- hookshot:approved -->` | Signals approval — breaks the reviewer/implementer loop. |
+
+**Example: reviewer triggers implementer, but not after approval**
+
+```yaml
+hooks:
+  pull_request_review.submitted:
+    - agent: implementer
+      if:
+        - "${{ review.body | contains hookshot:reviewer }}"
+        - "${{ review.body | not_contains hookshot:approved }}"
+```
+
+The reviewer includes `<!-- hookshot:approved -->` when satisfied, which causes the `not_contains` condition to fail, stopping the loop.
+
 ## Common patterns
 
 | Intent | Sketch |
@@ -33,6 +57,7 @@ After template expansion, Hookshot treats these strings as truthy/falsy. Rules: 
 | Keyword gate | `contains @deploy` |
 | Avoid feedback loops | `not_contains hookshot:agent` (or your project marker) |
 | Bot-only path | `eq Bot` on `sender.type` |
+| Break review loop on approval | `not_contains hookshot:approved` |
 
 ## See also
 
