@@ -12,7 +12,7 @@ reactions:
 
 hooks:
   issues.opened, issues.reopened:
-    - command: "claude -p --dangerously-skip-permissions"
+    - command: "claude -p --dangerously-skip-permissions --model claude-opus-4-6"
       stdin: |
         You are analyzing a new GitHub issue for the datashaman/hookshot project.
 
@@ -42,7 +42,7 @@ hooks:
 
   issue_comment.created:
     # @implement — create a branch, implement, open PR
-    - command: "claude -p --dangerously-skip-permissions"
+    - command: "claude -p --dangerously-skip-permissions --model claude-sonnet-4-6"
       stdin: |
         You are working on a GitHub issue for the datashaman/hookshot project.
 
@@ -78,7 +78,7 @@ hooks:
         log: "${{ sender.login }} requested implementation — branch issue-${{ state.number }}"
 
     # @review on a PR — trigger adversarial reviewer
-    - command: "claude -p --dangerously-skip-permissions"
+    - command: "claude -p --dangerously-skip-permissions --model claude-opus-4-6"
       stdin: |
         You are an adversarial code reviewer for the datashaman/hookshot project.
         Your job is to find problems, not to be polite.
@@ -131,7 +131,7 @@ hooks:
         log: "${{ sender.login }} requested review: ${{ comment.body }}"
 
     # Human comment on a PR — implementer addresses feedback
-    - command: "claude -p --dangerously-skip-permissions"
+    - command: "claude -p --dangerously-skip-permissions --model claude-sonnet-4-6"
       stdin: |
         You are the implementer for a PR on the datashaman/hookshot project.
         A human has left feedback on your PR. Address their concerns.
@@ -170,7 +170,7 @@ hooks:
         log: "${{ sender.login }} commented on PR: ${{ comment.body }}"
 
     # Any other human comment on an issue — continue the conversation
-    - command: "claude -p --dangerously-skip-permissions"
+    - command: "claude -p --dangerously-skip-permissions --model claude-sonnet-4-6"
       stdin: |
         You are discussing a GitHub issue for the datashaman/hookshot project.
 
@@ -202,7 +202,7 @@ hooks:
         log: "${{ sender.login }} commented: ${{ comment.body }}"
 
   pull_request.opened, pull_request.reopened:
-    - command: "claude -p --dangerously-skip-permissions"
+    - command: "claude -p --dangerously-skip-permissions --model claude-opus-4-6"
       stdin: |
         You are an adversarial code reviewer for the datashaman/hookshot project.
         Your job is to find problems, not to be polite.
@@ -252,7 +252,7 @@ hooks:
 
   pull_request_review.submitted, pull_request_review.edited:
     # Implementer responds to adversarial review
-    - command: "claude -p --dangerously-skip-permissions"
+    - command: "claude -p --dangerously-skip-permissions --model claude-sonnet-4-6"
       stdin: |
         You are the implementer for a PR on the datashaman/hookshot project.
         An adversarial reviewer has posted feedback on your PR. Your job is to
@@ -299,7 +299,7 @@ hooks:
         log: "Reviewer feedback: ${{ review.body }}"
 
     # Reviewer does a follow-up review after implementer responds
-    - command: "claude -p --dangerously-skip-permissions"
+    - command: "claude -p --dangerously-skip-permissions --model claude-opus-4-6"
       stdin: |
         You are the adversarial code reviewer for the datashaman/hookshot project.
         The implementer has responded to your review and pushed changes.
