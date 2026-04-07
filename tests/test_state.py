@@ -1,6 +1,6 @@
 """Tests for the state store."""
 
-from hookshot.state import StateStore
+from hookshot.state import MAX_CONTEXT_LENGTH, MAX_LOG_ENTRY_LENGTH, StateStore
 
 
 def test_load_returns_empty_on_corrupt_json(tmp_path):
@@ -75,3 +75,40 @@ def test_store_survives_corrupt_then_writes(tmp_path):
     store2 = StateStore(state_file)
     bucket = store2.get("k1")
     assert bucket["values"]["a"] == "1"
+
+
+def test_store_truncates_long_log_entry(tmp_path):
+    state_file = tmp_path / "state.json"
+    store = StateStore(state_file)
+
+    long_entry = "x" * (MAX_LOG_ENTRY_LENGTH + 100)
+    store.store("k1", log_entry=long_entry)
+    bucket = store.get("k1")
+    assert len(bucket["log"][0]) == MAX_LOG_ENTRY_LENGTH + 1  # +1 for "…"
+    assert bucket["log"][0].endswith("…")
+
+
+def test_get_context_truncates_to_max_length(tmp_path):
+    state_file = tmp_path / "state.json"
+    store = StateStore(state_file)
+
+    # Store many entries that together exceed MAX_CONTEXT_LENGTH
+    for i in range(100):
+        store.store("k1", log_entry=f"entry-{i}: " + "a" * 100)
+
+    ctx = store.get_context("k1")
+    assert len(ctx["context"]) <= MAX_CONTEXT_LENGTH
+
+
+def test_get_context_keeps_newest_entries(tmp_path):
+    state_file = tmp_path / "state.json"
+    store = StateStore(state_file)
+
+    # Store entries where total exceeds limit
+    for i in range(100):
+        store.store("k1", log_entry=f"entry-{i}: " + "a" * 100)
+
+    ctx = store.get_context("k1")
+    # The newest entries should be present, oldest dropped
+    assert "entry-99" in ctx["context"]
+    assert "entry-0" not in ctx["context"]
