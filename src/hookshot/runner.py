@@ -33,18 +33,30 @@ def resolve_dotpath(payload: dict, path: str) -> str | list:
     Supports wildcard notation: ``issue.labels.*.name`` extracts the
     ``name`` field from each element when the preceding segment is a list.
 
+    Only a single ``*`` segment is supported. Multiple wildcards (e.g.
+    ``a.*.b.*.c``) log a warning and return an empty string.
+
     Returns a list when a wildcard is used, otherwise a string (or empty
     string if the path is not found).
     """
+    keys = path.split(".")
+    if keys.count("*") > 1:
+        log.warning(
+            "Multiple wildcards in dotpath '%s' are not supported; "
+            "only a single '*' segment is allowed",
+            path,
+        )
+        return ""
+
     current: object = payload
-    for key in path.split("."):
+    saw_wildcard = False
+    for key in keys:
         if key == "*":
             if not isinstance(current, list):
                 return ""
-            # Remaining keys after "*" will be resolved per element
+            saw_wildcard = True
             continue
-        if isinstance(current, list):
-            # We're iterating after a "*": extract `key` from each element
+        if isinstance(current, list) and saw_wildcard:
             extracted = []
             for item in current:
                 if isinstance(item, dict) and key in item:
@@ -79,15 +91,20 @@ def apply_filter(value: str | list, filter_expr: str) -> str:
 
     if name == "any":
         if isinstance(value, list):
-            return "true" if any(v.lower() == arg.lower() for v in value) else "false"
-        return "true" if value.lower() == arg.lower() else "false"
+            return "true" if any(str(v).lower() == arg.lower() for v in value) else "false"
+        return "true" if str(value).lower() == arg.lower() else "false"
     elif name == "none":
         if isinstance(value, list):
-            return "true" if not any(v.lower() == arg.lower() for v in value) else "false"
-        return "true" if value.lower() != arg.lower() else "false"
+            return "true" if not any(str(v).lower() == arg.lower() for v in value) else "false"
+        return "true" if str(value).lower() != arg.lower() else "false"
 
     # String-only filters: stringify lists for backwards compatibility
     if isinstance(value, list):
+        log.warning(
+            "Filter '%s' stringifies list values; consider using 'any' or 'none' "
+            "for element-wise matching",
+            name,
+        )
         value = str(value)
 
     if name == "contains":

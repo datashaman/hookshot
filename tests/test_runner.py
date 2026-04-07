@@ -64,6 +64,18 @@ def test_resolve_dotpath_wildcard_empty_list():
     assert resolve_dotpath(payload, "items.*.name") == []
 
 
+def test_resolve_dotpath_multiple_wildcards_returns_empty():
+    """Multiple wildcards are unsupported and return empty string."""
+    payload = {"a": [{"b": [{"c": 1}]}]}
+    assert resolve_dotpath(payload, "a.*.b.*.c") == ""
+
+
+def test_resolve_dotpath_list_without_wildcard_returns_empty():
+    """Accessing a field on a list without '*' returns empty string."""
+    payload = {"items": [{"name": "a"}, {"name": "b"}]}
+    assert resolve_dotpath(payload, "items.name") == ""
+
+
 # --- apply_filter: existing string filters ---
 
 
@@ -140,6 +152,30 @@ def test_filter_any_empty_list():
 
 def test_filter_none_empty_list():
     assert apply_filter([], "none hookshot") == "true"
+
+
+def test_filter_any_with_non_string_elements():
+    """any/none coerce non-string elements to strings for comparison."""
+    assert apply_filter([42, 0], "any 42") == "true"
+    assert apply_filter([42, 0], "any 99") == "false"
+    assert apply_filter([True, False], "any true") == "true"
+
+
+def test_filter_none_with_non_string_elements():
+    assert apply_filter([42, 0], "none 42") == "false"
+    assert apply_filter([42, 0], "none 99") == "true"
+
+
+def test_filter_any_empty_arg():
+    """any with no arg matches empty-string elements."""
+    assert apply_filter(["a", ""], "any") == "true"
+    assert apply_filter(["a", "b"], "any") == "false"
+
+
+def test_filter_none_empty_arg():
+    """none with no arg is true when no element is empty string."""
+    assert apply_filter(["a", "b"], "none") == "true"
+    assert apply_filter(["a", ""], "none") == "false"
 
 
 # --- expand_template integration ---
