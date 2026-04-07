@@ -91,7 +91,45 @@ def load_config(path: Path | None = None) -> dict:
     if "repo" in config:
         config["repo"] = expand_env(str(config["repo"]))
 
+    _resolve_agents(config)
+
     return config
+
+
+def _resolve_agents(config: dict):
+    """Expand agent references in hooks to full command/stdin definitions.
+
+    If a hook has `agent: <name>`, the agent's `command` is copied in and
+    the hook's `stdin` (if any) is appended to the agent's base `stdin`.
+    """
+    agents = config.get("agents", {})
+
+    for event, commands in config.get("hooks", {}).items():
+        for i, cmd in enumerate(commands):
+            if "agent" not in cmd:
+                continue
+            agent_name = cmd["agent"]
+            if agent_name not in agents:
+                raise ValueError(
+                    f"hooks.{event}[{i}]: references undefined agent '{agent_name}'"
+                )
+            if "command" in cmd:
+                raise ValueError(
+                    f"hooks.{event}[{i}]: cannot have both 'agent' and 'command'"
+                )
+            agent_def = agents[agent_name]
+            cmd["command"] = agent_def["command"]
+
+            # Append hook stdin to agent base stdin
+            base_stdin = agent_def.get("stdin", "")
+            hook_stdin = cmd.get("stdin", "")
+            if base_stdin and hook_stdin:
+                cmd["stdin"] = base_stdin.rstrip("\n") + "\n" + hook_stdin
+            elif base_stdin:
+                cmd["stdin"] = base_stdin
+            # else hook_stdin stays as-is (or absent)
+
+            del cmd["agent"]
 
 
 def get_events(config: dict) -> list[str]:
@@ -172,6 +210,25 @@ def validate_config(config: dict) -> list[str]:
                 clear = cmd["clear"]
                 if not isinstance(clear, list):
                     errors.append(f"hooks.{event}[{i}].clear: must be a list")
+
+    # Validate agents
+    agents = config.get("agents")
+    if agents is not None:
+        if not isinstance(agents, dict):
+            errors.append("'agents' must be a mapping")
+        else:
+            for name, defn in agents.items():
+                if not isinstance(defn, dict):
+                    errors.append(f"agents.{name}: must be a mapping")
+                    continue
+                if "command" not in defn:
+                    errors.append(f"agents.{name}: missing 'command' key")
+                valid_agent_keys = {"command", "stdin"}
+                for key in defn:
+                    if key not in valid_agent_keys:
+                        errors.append(
+                            f"agents.{name}.{key}: unknown key (expected: command, stdin)"
+                        )
 
     # Validate worktrees
     worktrees = config.get("worktrees")
