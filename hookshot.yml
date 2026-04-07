@@ -38,7 +38,7 @@ hooks:
           title: "${{ issue.title }}"
           author: "${{ sender.login }}"
           number: "${{ issue.number }}"
-        log: "Issue #${{ issue.number }} opened by ${{ sender.login }}: ${{ issue.title }}\n\n${{ issue.body }}"
+        log: "Issue #${{ issue.number }} opened by ${{ sender.login }}: ${{ issue.title }} — fetch full body with: gh issue view ${{ issue.number }} --repo ${{ repository.full_name }}"
 
   issue_comment.created:
     # @implement — create a branch, implement, open PR
@@ -75,7 +75,7 @@ hooks:
         key: "issue:${{ repository.full_name }}:${{ issue.number }}"
       store:
         key: "issue:${{ repository.full_name }}:${{ issue.number }}"
-        log: "${{ sender.login }} requested implementation — branch issue-${{ state.number }}"
+        log: "${{ sender.login }} requested implementation (comment ${{ comment.id }}) — branch issue-${{ state.number }}"
 
     # @review on a PR — trigger adversarial reviewer
     - command: "claude -p --dangerously-skip-permissions --model opus"
@@ -128,7 +128,7 @@ hooks:
         key: "pr:${{ repository.full_name }}:${{ issue.number }}"
       store:
         key: "pr:${{ repository.full_name }}:${{ issue.number }}"
-        log: "${{ sender.login }} requested review: ${{ comment.body }}"
+        log: "${{ sender.login }} requested review on PR #${{ issue.number }} (comment ${{ comment.id }}) — fetch with: gh api repos/${{ repository.full_name }}/issues/comments/${{ comment.id }}"
 
     # Human comment on a PR — implementer addresses feedback
     - command: "claude -p --dangerously-skip-permissions --model sonnet"
@@ -167,7 +167,7 @@ hooks:
         key: "pr:${{ repository.full_name }}:${{ issue.number }}"
       store:
         key: "pr:${{ repository.full_name }}:${{ issue.number }}"
-        log: "${{ sender.login }} commented on PR: ${{ comment.body }}"
+        log: "${{ sender.login }} commented on PR #${{ issue.number }} (comment ${{ comment.id }}) — fetch with: gh api repos/${{ repository.full_name }}/issues/comments/${{ comment.id }}"
 
     # Any other human comment on an issue — continue the conversation
     - command: "claude -p --dangerously-skip-permissions --model sonnet"
@@ -199,7 +199,7 @@ hooks:
         key: "issue:${{ repository.full_name }}:${{ issue.number }}"
       store:
         key: "issue:${{ repository.full_name }}:${{ issue.number }}"
-        log: "${{ sender.login }} commented: ${{ comment.body }}"
+        log: "${{ sender.login }} commented on issue #${{ issue.number }} (comment ${{ comment.id }}) — fetch with: gh api repos/${{ repository.full_name }}/issues/comments/${{ comment.id }}"
 
   pull_request.opened, pull_request.reopened:
     - command: "claude -p --dangerously-skip-permissions --model opus"
@@ -296,7 +296,7 @@ hooks:
         key: "pr:${{ repository.full_name }}:${{ pull_request.number }}"
       store:
         key: "pr:${{ repository.full_name }}:${{ pull_request.number }}"
-        log: "Reviewer feedback: ${{ review.body }}"
+        log: "Reviewer ${{ review.user.login }} posted feedback on PR #${{ pull_request.number }} (review ${{ review.id }}) — fetch with: gh api repos/${{ repository.full_name }}/pulls/${{ pull_request.number }}/reviews/${{ review.id }}"
 
     # Reviewer does a follow-up review after implementer responds
     - command: "claude -p --dangerously-skip-permissions --model opus"
@@ -334,7 +334,7 @@ hooks:
         key: "pr:${{ repository.full_name }}:${{ pull_request.number }}"
       store:
         key: "pr:${{ repository.full_name }}:${{ pull_request.number }}"
-        log: "Implementer response: ${{ review.body }}"
+        log: "Implementer ${{ review.user.login }} responded on PR #${{ pull_request.number }} (review ${{ review.id }}) — fetch with: gh api repos/${{ repository.full_name }}/pulls/${{ pull_request.number }}/reviews/${{ review.id }}"
 
   pull_request.closed:
     - command: "echo 'PR #${{ pull_request.number }} closed, cleaning up state'"

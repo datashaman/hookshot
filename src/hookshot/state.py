@@ -10,6 +10,9 @@ from pathlib import Path
 
 log = logging.getLogger("hookshot")
 
+MAX_LOG_ENTRY_LENGTH = 500
+MAX_CONTEXT_LENGTH = 4000
+
 
 class StateStore:
     """Flat key-value store where each key holds a bucket of values and a log."""
@@ -75,7 +78,21 @@ class StateStore:
         """
         bucket = self.get(key)
         ctx = dict(bucket.get("values", {}))
-        ctx["context"] = "\n".join(bucket.get("log", []))
+        entries = bucket.get("log", [])
+        joined = "\n".join(entries)
+        if len(joined) > MAX_CONTEXT_LENGTH:
+            # Keep newest entries that fit within the budget
+            kept: list[str] = []
+            total = 0
+            for entry in reversed(entries):
+                needed = len(entry) + (1 if kept else 0)  # +1 for newline separator
+                if total + needed > MAX_CONTEXT_LENGTH:
+                    break
+                kept.append(entry)
+                total += needed
+            kept.reverse()
+            joined = "\n".join(kept)
+        ctx["context"] = joined
         return ctx
 
     def store(self, key: str, values: dict | None = None, log_entry: str | None = None):
@@ -89,6 +106,8 @@ class StateStore:
             if values:
                 bucket["values"].update(values)
             if log_entry:
+                if len(log_entry) > MAX_LOG_ENTRY_LENGTH:
+                    log_entry = log_entry[:MAX_LOG_ENTRY_LENGTH] + "…"
                 bucket["log"].append(log_entry)
             self._save(data)
             log.info("  State stored: %s", key)
