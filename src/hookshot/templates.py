@@ -272,8 +272,12 @@ hooks:
           loop_count: "${{{{ state.loop_count | add 1 }}}}"
         log: "Implementer ${{{{ review.user.login }}}} responded on PR #${{{{ pull_request.number }}}} (review ${{{{ review.id }}}})"
 
-    # Loop capped at 4 automated turns without approval — hand off to a human, once
-    - command: "gh pr comment ${{{{ pull_request.number }}}} --repo ${{{{ repository.full_name }}}} --body '🛑 **hookshot**: the reviewer/implementer loop has gone 4 turns without approval on this PR. Stopping automated iteration — a human should take it from here.'"
+    # Loop capped at 4 automated turns without approval — hand off to a human, once.
+    # The body carries the hookshot:agent marker like every other bot-posted
+    # comment — without it, this comment is itself an unmarked PR comment
+    # and can satisfy a comment-triggered hook's guard, re-firing the very
+    # loop it's meant to stop.
+    - command: "gh pr comment ${{{{ pull_request.number }}}} --repo ${{{{ repository.full_name }}}} --body '🛑 **hookshot**: the reviewer/implementer loop has gone 4 turns without approval on this PR. Stopping automated iteration — a human should take it from here.\\n\\n<!-- hookshot:agent -->'"
       if:
         - "${{{{ review.body | not_contains <!-- hookshot:approved --> }}}}"
         - "${{{{ state.loop_count | gte 4 }}}}"
@@ -631,8 +635,12 @@ hooks:
           loop_count: "${{{{ state.loop_count | add 1 }}}}"
         log: "Implementer ${{{{ review.user.login }}}} responded on PR #${{{{ pull_request.number }}}} (review ${{{{ review.id }}}})"
 
-    # Loop capped at 4 automated turns without approval — hand off to a human, once
-    - command: "gh pr comment ${{{{ pull_request.number }}}} --repo ${{{{ repository.full_name }}}} --body '🛑 **hookshot**: the reviewer/implementer loop has gone 4 turns without approval on this PR. Stopping automated iteration — a human should take it from here.'"
+    # Loop capped at 4 automated turns without approval — hand off to a human, once.
+    # The body carries the hookshot:agent marker like every other bot-posted
+    # comment — without it, this comment is itself an unmarked PR comment
+    # and can satisfy a comment-triggered hook's guard, re-firing the very
+    # loop it's meant to stop.
+    - command: "gh pr comment ${{{{ pull_request.number }}}} --repo ${{{{ repository.full_name }}}} --body '🛑 **hookshot**: the reviewer/implementer loop has gone 4 turns without approval on this PR. Stopping automated iteration — a human should take it from here.\\n\\n<!-- hookshot:agent -->'"
       if:
         - "${{{{ review.body | not_contains <!-- hookshot:approved --> }}}}"
         - "${{{{ state.loop_count | gte 4 }}}}"
