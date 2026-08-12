@@ -96,9 +96,15 @@ _CONVERSATIONALIST_AGENT = """\
       If they suggest changes, update your thinking.
       If they provide more context, incorporate it.
 
+      You cannot implement anything from this hook — it only posts a comment.
+      Never say you are "proceeding to implement" or that you will push changes;
+      that only happens when a human comments @implement. If the plan is settled
+      and ready to build, say so and tell them to comment @implement, don't
+      imply it's already underway.
+
       Post your response as a comment on the issue.
       You MUST include the marker <!-- hookshot:agent --> at the end of your comment:
-      gh issue comment ${{{{ state.number }}}} --repo ${{{{ repository.full_name }}}} --body '<your response>
+      gh issue comment ${{{{ issue.number }}}} --repo ${{{{ repository.full_name }}}} --body '<your response>
 
       <!-- hookshot:agent -->'
 """
@@ -341,27 +347,28 @@ hooks:
         The user ${{{{ sender.login }}}} has asked you to implement the plan.
 
         1. Read the plan from the context above
-        2. Create a new branch: git checkout -b issue-${{{{ state.number }}}}
+        2. Create a new branch: git checkout -b issue-${{{{ issue.number }}}}
         3. Implement the changes
         4. Write tests for any new or changed functionality
         5. Run the full test suite. If any tests fail, fix them before proceeding.
         6. Commit and push the branch
         7. Open a PR using:
-           gh pr create --title 'Fix #${{{{ state.number }}}}: ${{{{ state.title }}}}' --body 'Resolves #${{{{ state.number }}}}'
+           gh pr create --title 'Fix #${{{{ issue.number }}}}: ${{{{ issue.title }}}}' --body 'Resolves #${{{{ issue.number }}}}'
         8. Comment on the issue with a link to the PR.
            You MUST include the marker <!-- hookshot:agent --> at the end of your comment:
-           gh issue comment ${{{{ state.number }}}} --repo ${{{{ repository.full_name }}}} --body '<your comment with PR link>
+           gh issue comment ${{{{ issue.number }}}} --repo ${{{{ repository.full_name }}}} --body '<your comment with PR link>
 
            <!-- hookshot:agent -->'
       if:
         - "${{{{ sender.type | neq Bot }}}}"
         - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
         - "${{{{ comment.body | contains @implement }}}}"
+        - "${{{{ issue.pull_request.url | eq }}}}"
       load:
         key: "issue:${{{{ repository.full_name }}}}:${{{{ issue.number }}}}"
       store:
         key: "issue:${{{{ repository.full_name }}}}:${{{{ issue.number }}}}"
-        log: "${{{{ sender.login }}}} requested implementation (comment ${{{{ comment.id }}}}) — branch issue-${{{{ state.number }}}}"
+        log: "${{{{ sender.login }}}} requested implementation (comment ${{{{ comment.id }}}}) — branch issue-${{{{ issue.number }}}}"
 
     # Any other human comment on an issue — continue the conversation
     - agent: conversationalist
@@ -447,27 +454,28 @@ hooks:
         The user ${{{{ sender.login }}}} has asked you to implement the plan.
 
         1. Read the plan from the context above
-        2. Create a new branch: git checkout -b issue-${{{{ state.number }}}}
+        2. Create a new branch: git checkout -b issue-${{{{ issue.number }}}}
         3. Implement the changes
         4. Write tests for any new or changed functionality
         5. Run the full test suite. If any tests fail, fix them before proceeding.
         6. Commit and push the branch
         7. Open a PR using:
-           gh pr create --title 'Fix #${{{{ state.number }}}}: ${{{{ state.title }}}}' --body 'Resolves #${{{{ state.number }}}}'
+           gh pr create --title 'Fix #${{{{ issue.number }}}}: ${{{{ issue.title }}}}' --body 'Resolves #${{{{ issue.number }}}}'
         8. Comment on the issue with a link to the PR.
            You MUST include the marker <!-- hookshot:agent --> at the end of your comment:
-           gh issue comment ${{{{ state.number }}}} --repo ${{{{ repository.full_name }}}} --body '<your comment with PR link>
+           gh issue comment ${{{{ issue.number }}}} --repo ${{{{ repository.full_name }}}} --body '<your comment with PR link>
 
            <!-- hookshot:agent -->'
       if:
         - "${{{{ sender.type | neq Bot }}}}"
         - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
         - "${{{{ comment.body | contains @implement }}}}"
+        - "${{{{ issue.pull_request.url | eq }}}}"
       load:
         key: "issue:${{{{ repository.full_name }}}}:${{{{ issue.number }}}}"
       store:
         key: "issue:${{{{ repository.full_name }}}}:${{{{ issue.number }}}}"
-        log: "${{{{ sender.login }}}} requested implementation (comment ${{{{ comment.id }}}}) — branch issue-${{{{ state.number }}}}"
+        log: "${{{{ sender.login }}}} requested implementation (comment ${{{{ comment.id }}}}) — branch issue-${{{{ issue.number }}}}"
 
     # @review on a PR — trigger adversarial reviewer
     - agent: reviewer
