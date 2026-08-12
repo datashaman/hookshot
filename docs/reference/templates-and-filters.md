@@ -38,6 +38,9 @@ ${{ issue.labels.*.name | any bug }}  → "true"
 | `upper` | — | Uppercase |
 | `any` | word | `"true"` if any list element equals arg (case-insensitive). Falls back to `eq` for strings. |
 | `none` | word | `"true"` if **no** list element equals arg (case-insensitive). Falls back to `neq` for strings. |
+| `add` | number | value + arg as integers, stringified. Non-numeric or missing value is treated as `0` — the idiom for a counter that starts unset: `${{ state.n \| add 1 }}`. |
+| `lt` | number | `"true"` if value < arg as integers. Missing/non-numeric value treated as `0`. |
+| `gte` | number | `"true"` if value >= arg as integers. Missing/non-numeric value treated as `0`. |
 
 Unknown filter names log a warning and return the pre-filter value unchanged (implementation detail).
 

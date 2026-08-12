@@ -108,6 +108,41 @@ def test_filter_upper():
     assert apply_filter("hello", "upper") == "HELLO"
 
 
+# --- apply_filter: numeric filters ---
+
+
+def test_filter_add():
+    assert apply_filter("3", "add 1") == "4"
+
+
+def test_filter_add_missing_value_treated_as_zero():
+    assert apply_filter("", "add 1") == "1"
+
+
+def test_filter_add_non_numeric_value_treated_as_zero():
+    assert apply_filter("not-a-number", "add 1") == "1"
+
+
+def test_filter_lt():
+    assert apply_filter("3", "lt 4") == "true"
+    assert apply_filter("4", "lt 4") == "false"
+    assert apply_filter("5", "lt 4") == "false"
+
+
+def test_filter_lt_missing_value_treated_as_zero():
+    assert apply_filter("", "lt 4") == "true"
+
+
+def test_filter_gte():
+    assert apply_filter("4", "gte 4") == "true"
+    assert apply_filter("5", "gte 4") == "true"
+    assert apply_filter("3", "gte 4") == "false"
+
+
+def test_filter_gte_missing_value_treated_as_zero():
+    assert apply_filter("", "gte 4") == "false"
+
+
 # --- apply_filter: array filters ---
 
 

@@ -227,10 +227,13 @@ hooks:
       if:
         - "${{{{ review.body | contains <!-- hookshot:reviewer --> }}}}"
         - "${{{{ review.body | not_contains <!-- hookshot:approved --> }}}}"
+        - "${{{{ state.loop_count | lt 4 }}}}"
       load:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
       store:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
+        values:
+          loop_count: "${{{{ state.loop_count | add 1 }}}}"
         log: "Reviewer ${{{{ review.user.login }}}} posted feedback on PR #${{{{ pull_request.number }}}} (review ${{{{ review.id }}}})"
 
     # Reviewer does a follow-up review after implementer responds
@@ -254,11 +257,27 @@ hooks:
       if:
         - "${{{{ review.body | contains <!-- hookshot:implementer --> }}}}"
         - "${{{{ review.body | not_contains <!-- hookshot:approved --> }}}}"
+        - "${{{{ state.loop_count | lt 4 }}}}"
       load:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
       store:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
+        values:
+          loop_count: "${{{{ state.loop_count | add 1 }}}}"
         log: "Implementer ${{{{ review.user.login }}}} responded on PR #${{{{ pull_request.number }}}} (review ${{{{ review.id }}}})"
+
+    # Loop capped at 4 automated turns without approval — hand off to a human, once
+    - command: "gh pr comment ${{{{ pull_request.number }}}} --repo ${{{{ repository.full_name }}}} --body '🛑 **hookshot**: the reviewer/implementer loop has gone 4 turns without approval on this PR. Stopping automated iteration — a human should take it from here.'"
+      if:
+        - "${{{{ review.body | not_contains <!-- hookshot:approved --> }}}}"
+        - "${{{{ state.loop_count | gte 4 }}}}"
+        - "${{{{ state.escalated | neq true }}}}"
+      load:
+        key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
+      store:
+        key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
+        values:
+          escalated: "true"
 
   # Clean up state when PR is closed
   pull_request.closed:
@@ -565,10 +584,13 @@ hooks:
       if:
         - "${{{{ review.body | contains <!-- hookshot:reviewer --> }}}}"
         - "${{{{ review.body | not_contains <!-- hookshot:approved --> }}}}"
+        - "${{{{ state.loop_count | lt 4 }}}}"
       load:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
       store:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
+        values:
+          loop_count: "${{{{ state.loop_count | add 1 }}}}"
         log: "Reviewer ${{{{ review.user.login }}}} posted feedback on PR #${{{{ pull_request.number }}}} (review ${{{{ review.id }}}})"
 
     # Reviewer does a follow-up review after implementer responds
@@ -592,11 +614,27 @@ hooks:
       if:
         - "${{{{ review.body | contains <!-- hookshot:implementer --> }}}}"
         - "${{{{ review.body | not_contains <!-- hookshot:approved --> }}}}"
+        - "${{{{ state.loop_count | lt 4 }}}}"
       load:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
       store:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
+        values:
+          loop_count: "${{{{ state.loop_count | add 1 }}}}"
         log: "Implementer ${{{{ review.user.login }}}} responded on PR #${{{{ pull_request.number }}}} (review ${{{{ review.id }}}})"
+
+    # Loop capped at 4 automated turns without approval — hand off to a human, once
+    - command: "gh pr comment ${{{{ pull_request.number }}}} --repo ${{{{ repository.full_name }}}} --body '🛑 **hookshot**: the reviewer/implementer loop has gone 4 turns without approval on this PR. Stopping automated iteration — a human should take it from here.'"
+      if:
+        - "${{{{ review.body | not_contains <!-- hookshot:approved --> }}}}"
+        - "${{{{ state.loop_count | gte 4 }}}}"
+        - "${{{{ state.escalated | neq true }}}}"
+      load:
+        key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
+      store:
+        key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
+        values:
+          escalated: "true"
 
   # Clean up state when PR or issue is closed
   pull_request.closed:

@@ -116,6 +116,9 @@ def apply_filter(value: str | list, filter_expr: str) -> str:
         upper               → uppercase
         any <arg>           → "true" if any element in a list equals arg (case-insensitive)
         none <arg>          → "true" if no element in a list equals arg (case-insensitive)
+        add <arg>           → value + arg as integers, stringified (non-numeric/missing treated as 0)
+        lt <arg>             → "true" if value < arg as integers (non-numeric/missing treated as 0)
+        gte <arg>            → "true" if value >= arg as integers (non-numeric/missing treated as 0)
     """
     parts = filter_expr.strip().split(None, 1)
     name = parts[0]
@@ -138,6 +141,22 @@ def apply_filter(value: str | list, filter_expr: str) -> str:
             name,
         )
         value = str(value)
+
+    if name in ("add", "lt", "gte"):
+        try:
+            base = int(str(value).strip())
+        except ValueError:
+            base = 0
+        try:
+            operand = int(arg.strip())
+        except ValueError:
+            operand = 0
+        if name == "add":
+            return str(base + operand)
+        elif name == "lt":
+            return "true" if base < operand else "false"
+        else:  # gte
+            return "true" if base >= operand else "false"
 
     if name == "contains":
         return "true" if arg.lower() in value.lower() else "false"
