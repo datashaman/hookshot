@@ -99,7 +99,7 @@ def ensure_worktree(
             log.error("Failed to create worktree: %s", result.stderr.rstrip())
             raise RuntimeError(f"git worktree add failed: {result.stderr.rstrip()}")
     else:
-        new_branch = f"hookshot/issue-{issue_number}"
+        new_branch = f"hookshot-issue-{issue_number}"
         log.info("Creating worktree: %s (branch: %s)", wt_path, new_branch)
 
         result = subprocess.run(
@@ -109,8 +109,16 @@ def ensure_worktree(
         )
 
         if result.returncode != 0:
-            # Branch may already exist — try without -b
-            log.info("Branch %s may already exist, retrying without -b", new_branch)
+            # Branch may already exist — try without -b. Log the first
+            # attempt's actual error rather than assuming why it failed;
+            # a namespace collision (e.g. hookshot/issue-N under an
+            # existing flat "hookshot" branch) looks identical to "already
+            # exists" here but produces a different, more confusing error
+            # on the retry below if the assumption is wrong.
+            log.info(
+                "First attempt failed (%s), retrying without -b in case %s already exists",
+                result.stderr.rstrip(), new_branch,
+            )
             result = subprocess.run(
                 ["git", "worktree", "add", str(wt_path), new_branch],
                 capture_output=True,
@@ -188,7 +196,7 @@ def remove_worktree(
     log.info("Worktree removed: %s", wt_path)
 
     # Clean up the branch
-    branch = f"hookshot/issue-{issue_number}"
+    branch = f"hookshot-issue-{issue_number}"
     log.info("Deleting branch: %s", branch)
     branch_result = subprocess.run(
         ["git", "branch", "-D", branch],

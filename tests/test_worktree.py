@@ -100,7 +100,7 @@ def test_ensure_worktree_creates_new(mock_run, mock_root, mock_valid, tmp_path):
     args = mock_run.call_args[0][0]
     assert args[:3] == ["git", "worktree", "add"]
     assert "-b" in args
-    assert "hookshot/issue-42" in args
+    assert "hookshot-issue-42" in args
 
 
 @patch("hookshot.worktree._is_valid_worktree", return_value=False)
@@ -120,7 +120,7 @@ def test_ensure_worktree_with_branch_tracks_existing_branch(mock_run, mock_root,
     assert fetch_args == ["git", "fetch", "origin", "fix/hookshot-loop-cap"]
     assert worktree_args == ["git", "worktree", "add", str(Path(base) / "issue-44"), "fix/hookshot-loop-cap"]
     assert "-b" not in worktree_args
-    assert "hookshot/issue-44" not in worktree_args
+    assert "hookshot-issue-44" not in worktree_args
 
 
 @patch("hookshot.worktree._is_valid_worktree", return_value=False)
@@ -182,7 +182,7 @@ def test_ensure_worktree_retries_without_b_flag(mock_run, mock_root, mock_valid,
     # Second call should not have -b
     second_args = mock_run.call_args_list[1][0][0]
     assert "-b" not in second_args
-    assert "hookshot/issue-42" in second_args
+    assert "hookshot-issue-42" in second_args
 
 
 @patch("hookshot.worktree._is_valid_worktree", return_value=False)
@@ -257,7 +257,7 @@ def test_remove_worktree_success(mock_run, mock_root, tmp_path):
     remove_args = mock_run.call_args_list[0][0][0]
     assert remove_args[:3] == ["git", "worktree", "remove"]
     branch_args = mock_run.call_args_list[1][0][0]
-    assert branch_args == ["git", "branch", "-D", "hookshot/issue-42"]
+    assert branch_args == ["git", "branch", "-D", "hookshot-issue-42"]
 
 
 @patch("hookshot.worktree._git_repo_root", return_value=Path("/repo"))
