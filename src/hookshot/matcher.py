@@ -22,6 +22,7 @@ def _resolve_worktree_cwd(
     payload: dict,
     qualified: str | None,
     worktrees_config: dict | None,
+    env: dict[str, str] | None = None,
 ) -> str | None:
     """Determine the working directory for a command.
 
@@ -46,7 +47,7 @@ def _resolve_worktree_cwd(
     base_path = worktrees_config["path"]
     setup = worktrees_config.get("setup")
 
-    wt_path = ensure_worktree(base_path, issue_number, setup_command=setup)
+    wt_path = ensure_worktree(base_path, issue_number, setup_command=setup, env=env)
     return str(wt_path)
 
 
@@ -54,6 +55,7 @@ def _handle_close_worktree(
     payload: dict,
     qualified: str | None,
     worktrees_config: dict | None,
+    env: dict[str, str] | None = None,
 ) -> None:
     """Remove the worktree when an issue is closed."""
     if not worktrees_config:
@@ -67,7 +69,7 @@ def _handle_close_worktree(
 
     base_path = worktrees_config["path"]
     teardown = worktrees_config.get("teardown")
-    remove_worktree(base_path, issue_number, teardown_command=teardown)
+    remove_worktree(base_path, issue_number, teardown_command=teardown, env=env)
 
 
 def match_and_run(
@@ -80,6 +82,7 @@ def match_and_run(
     reactions: dict | None = None,
     worktrees: dict | None = None,
     default_timeout: int | None = None,
+    env: dict[str, str] | None = None,
 ) -> int:
     """Match a GitHub event against configured hooks and run matching commands.
 
@@ -109,7 +112,7 @@ def match_and_run(
             log.info("Matched hook: %s → %d command(s)", hook_key, len(commands))
             for i, cmd in enumerate(commands, 1):
                 try:
-                    cwd = _resolve_worktree_cwd(cmd, payload, qualified, worktrees)
+                    cwd = _resolve_worktree_cwd(cmd, payload, qualified, worktrees, env)
                 except RuntimeError:
                     log.error("  Skipping command %d/%d (worktree creation failed): %s", i, len(commands), cmd.get("command", "?"))
                     continue
@@ -122,12 +125,13 @@ def match_and_run(
                     reactions=reactions,
                     cwd=cwd,
                     default_timeout=default_timeout,
+                    env=env,
                 ):
                     executed += 1
 
     # Handle worktree cleanup on issue close (after commands run)
     if not dry_run:
-        _handle_close_worktree(payload, qualified, worktrees)
+        _handle_close_worktree(payload, qualified, worktrees, env)
 
     if not matched:
         log.info("No hooks matched event: %s", qualified or event)

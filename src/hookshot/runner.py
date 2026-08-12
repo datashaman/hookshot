@@ -160,10 +160,13 @@ def expand_template(
     template: str,
     payload: dict,
     state_context: dict | None = None,
+    env: dict[str, str] | None = None,
 ) -> str:
     """Replace ${{ dotpath }} or ${{ dotpath | filter arg }} placeholders.
 
     Paths starting with "state." resolve from state_context instead.
+    Paths starting with "env." resolve from the merged config/process
+    environment (see :func:`hookshot.config.resolved_env`).
     Pipe filters are applied after value resolution.
     """
     def replacer(m: re.Match[str]) -> str:
@@ -178,9 +181,12 @@ def expand_template(
             filter_expr = None
 
         # Resolve value (may be str or list when wildcards are used)
-        if path.startswith("state.") and state_context is not None:
+        if path.startswith("env."):
+            env_key = path[len("env."):]
+            resolved: str | list[str] = (env or {}).get(env_key, "")
+        elif path.startswith("state.") and state_context is not None:
             state_key = path[len("state."):]
-            resolved: str | list[str] = str(state_context.get(state_key, ""))
+            resolved = str(state_context.get(state_key, ""))
         else:
             resolved = resolve_dotpath(payload, path)
 
@@ -211,6 +217,7 @@ def _run_command_streaming(
     cwd: str | None,
     stdin_text: str | None,
     timeout_sec: int,
+    env: dict[str, str] | None = None,
 ) -> int:
     """Run shell command with stdout/stderr streamed line-by-line.
 
@@ -228,6 +235,7 @@ def _run_command_streaming(
         text=True,
         bufsize=1,
         cwd=cwd,
+        env=env,
     )
     if use_stdin and proc.stdin is not None:
         try:
@@ -293,6 +301,7 @@ def run_command(
     reactions: dict | None = None,
     cwd: str | None = None,
     default_timeout: int | None = None,
+    env: dict[str, str] | None = None,
 ) -> bool:
     """Expand templates in a command config and execute it.
 
@@ -301,6 +310,10 @@ def run_command(
     default_timeout: seconds when the command has no ``timeout`` key (from global
         config). Falls back to :data:`hookshot.config.DEFAULT_COMMAND_TIMEOUT`.
 
+    env: merged config/process environment (see
+        :func:`hookshot.config.resolved_env`), used both to resolve
+        ``${{ env.X }}`` placeholders and as the child process's environment.
+
     Set ``stream: true`` on the command to use ``Popen`` and mirror stdout/stderr
     line-by-line to the terminal while writing structured JSON lines to the log
     file (command-agnostic; useful for long runs).
@@ -308,16 +321,16 @@ def run_command(
     # Load state context
     state_context = None
     if "load" in cmd_config and state is not None:
-        load_key = expand_template(cmd_config["load"]["key"], payload)
+        load_key = expand_template(cmd_config["load"]["key"], payload, env=env)
         state_context = state.get_context(load_key)
         log.info("  Loaded state: %s", load_key)
 
-    command = expand_template(cmd_config["command"], payload, state_context)
+    command = expand_template(cmd_config["command"], payload, state_context, env=env)
 
     # Expand optional stdin content
     stdin_text = None
     if "stdin" in cmd_config:
-        stdin_text = expand_template(str(cmd_config["stdin"]), payload, state_context)
+        stdin_text = expand_template(str(cmd_config["stdin"]), payload, state_context, env=env)
 
     # Check conditions — single string or list (all must be truthy)
     if "if" in cmd_config:
@@ -325,7 +338,7 @@ def run_command(
         if isinstance(conditions, str):
             conditions = [conditions]
         for cond in conditions:
-            expanded = expand_template(str(cond), payload, state_context)
+            expanded = expand_template(str(cond), payload, state_context, env=env)
             if not is_truthy(expanded):
                 log.info("  Skipped (condition false: %s): %s", cond, command)
                 return False
@@ -345,8 +358,8 @@ def run_command(
             )
         if stdin_text:
             log.info("  [dry-run] stdin: %s", stdin_text[:200])
-        _process_store(cmd_config, payload, state, state_context, dry_run=True)
-        _process_clear(cmd_config, payload, state, dry_run=True)
+        _process_store(cmd_config, payload, state, state_context, env=env, dry_run=True)
+        _process_clear(cmd_config, payload, state, env=env, dry_run=True)
         return True
 
     log.info("  Executing: %s", command)
@@ -365,6 +378,7 @@ def run_command(
                 cwd=cwd,
                 stdin_text=stdin_text,
                 timeout_sec=timeout_sec,
+                env=env,
             )
         else:
             result = subprocess.run(
@@ -375,6 +389,7 @@ def run_command(
                 timeout=timeout_sec,
                 input=stdin_text,
                 cwd=cwd,
+                env=env,
             )
             returncode = result.returncode
             _emit_subprocess_blob("stdout", result.stdout)
@@ -388,12 +403,12 @@ def run_command(
         # Store/clear only on success (exit code 0)
         log.info("  Command succeeded: %s", command)
         try:
-            _process_store(cmd_config, payload, state, state_context)
+            _process_store(cmd_config, payload, state, state_context, env=env)
         except Exception:
             store_key = cmd_config.get("store", {}).get("key", "?")
             log.error("  State store failed for key '%s'", store_key)
         try:
-            _process_clear(cmd_config, payload, state)
+            _process_clear(cmd_config, payload, state, env=env)
         except Exception:
             clear_keys = cmd_config.get("clear", [])
             log.error("  State clear failed for keys %s", clear_keys)
@@ -435,6 +450,7 @@ def _process_store(
     state: StateStore | None,
     state_context: dict | None = None,
     *,
+    env: dict[str, str] | None = None,
     dry_run: bool = False,
 ):
     """Process the store directive on a command config."""
@@ -442,18 +458,18 @@ def _process_store(
         return
 
     store_cfg = cmd_config["store"]
-    key = expand_template(store_cfg["key"], payload, state_context)
+    key = expand_template(store_cfg["key"], payload, state_context, env=env)
 
     values = None
     if "values" in store_cfg:
         values = {
-            k: expand_template(v, payload, state_context)
+            k: expand_template(v, payload, state_context, env=env)
             for k, v in store_cfg["values"].items()
         }
 
     log_entry = None
     if "log" in store_cfg:
-        log_entry = expand_template(store_cfg["log"], payload, state_context)
+        log_entry = expand_template(store_cfg["log"], payload, state_context, env=env)
 
     if dry_run:
         if values:
@@ -470,6 +486,7 @@ def _process_clear(
     payload: dict,
     state: StateStore | None,
     *,
+    env: dict[str, str] | None = None,
     dry_run: bool = False,
 ):
     """Process the clear directive on a command config."""
@@ -477,7 +494,7 @@ def _process_clear(
         return
 
     for pattern_template in cmd_config["clear"]:
-        pattern = expand_template(pattern_template, payload)
+        pattern = expand_template(pattern_template, payload, env=env)
         if dry_run:
             log.info("  [dry-run] Would clear state: %s", pattern)
         else:

@@ -12,7 +12,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-from .config import get_events
+from .config import get_events, resolved_env
 from .matcher import match_and_run
 from .state import StateStore
 
@@ -72,6 +72,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
         reactions = self.server.hookshot_config.get("reactions")
         worktrees = self.server.hookshot_config.get("worktrees")
         default_timeout = self.server.hookshot_config.get("timeout")
+        env = resolved_env(self.server.hookshot_config)
 
         self.server.hookshot_executor.submit(
             _run_webhook_commands,
@@ -84,6 +85,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
             reactions,
             worktrees,
             default_timeout,
+            env,
         )
 
         log.info(
@@ -119,6 +121,7 @@ def _run_webhook_commands(
     reactions: dict | None,
     worktrees: dict | None,
     default_timeout: int | None,
+    env: dict[str, str] | None = None,
 ) -> None:
     """Run hook commands in a thread pool worker (HTTP handler returns before this)."""
     threading.current_thread().name = f"hookshot-{work_id}"
@@ -138,6 +141,7 @@ def _run_webhook_commands(
             reactions=reactions,
             worktrees=worktrees,
             default_timeout=default_timeout,
+            env=env,
         )
         log.info(
             "Webhook work finished work_id=%s delivery=%s executed=%d",

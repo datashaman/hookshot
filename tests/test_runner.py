@@ -239,6 +239,31 @@ def test_expand_template_list_with_string_filter():
     assert result == "true"
 
 
+# --- expand_template env namespace ---
+
+
+def test_expand_template_env_resolves_from_map():
+    result = expand_template("${{ env.CLAUDE_BIN }}", {}, env={"CLAUDE_BIN": "claude-next"})
+    assert result == "claude-next"
+
+
+def test_expand_template_env_missing_key_is_empty():
+    assert expand_template("${{ env.NOPE }}", {}, env={"CLAUDE_BIN": "claude-next"}) == ""
+
+
+def test_expand_template_env_none_map_is_empty():
+    assert expand_template("${{ env.CLAUDE_BIN }}", {}) == ""
+
+
+def test_expand_template_env_with_filter():
+    result = expand_template(
+        "${{ env.CLAUDE_MODEL | upper }}",
+        {},
+        env={"CLAUDE_MODEL": "opus"},
+    )
+    assert result == "OPUS"
+
+
 # --- Review loop termination (issue #29) ---
 
 

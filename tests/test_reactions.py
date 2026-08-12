@@ -324,6 +324,69 @@ def test_run_command_per_hook_timeout_overrides_global(mock_subprocess):
     assert mock_subprocess.call_args.kwargs["timeout"] == 1800
 
 
+# --- run_command env ---
+
+
+@patch("hookshot.runner.subprocess.run")
+def test_run_command_expands_env_in_command(mock_subprocess):
+    mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    run_command(
+        {"command": "${{ env.CLAUDE_BIN }} -p"},
+        {},
+        env={"CLAUDE_BIN": "claude-next"},
+    )
+    assert mock_subprocess.call_args.args[0] == "claude-next -p"
+
+
+@patch("hookshot.runner.subprocess.run")
+def test_run_command_expands_env_in_stdin_and_if(mock_subprocess):
+    mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    run_command(
+        {
+            "command": "echo hi",
+            "stdin": "model=${{ env.CLAUDE_MODEL }}",
+            "if": "${{ env.CLAUDE_MODEL }}",
+        },
+        {},
+        env={"CLAUDE_MODEL": "opus"},
+    )
+    assert mock_subprocess.call_args.kwargs["input"] == "model=opus"
+
+
+@patch("hookshot.runner.subprocess.run")
+def test_run_command_if_env_false_skips(mock_subprocess):
+    run_command(
+        {"command": "echo hi", "if": "${{ env.MISSING }}"},
+        {},
+        env={},
+    )
+    mock_subprocess.assert_not_called()
+
+
+@patch("hookshot.runner.subprocess.run")
+def test_run_command_passes_env_to_subprocess(mock_subprocess):
+    mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    env = {"CLAUDE_BIN": "claude-next"}
+    run_command({"command": "echo hi"}, {}, env=env)
+    assert mock_subprocess.call_args.kwargs["env"] == env
+
+
+@patch("hookshot.runner.subprocess.Popen")
+def test_run_command_stream_passes_env_to_popen(mock_popen):
+    mock_proc = MagicMock()
+    mock_proc.stdout = io.StringIO("")
+    mock_proc.stderr = io.StringIO("")
+    mock_proc.stdin = None
+    mock_proc.wait = MagicMock(return_value=None)
+    mock_proc.returncode = 0
+    mock_popen.return_value = mock_proc
+
+    env = {"CLAUDE_BIN": "claude-next"}
+    run_command({"command": "echo hi", "stream": True}, {}, env=env)
+
+    assert mock_popen.call_args.kwargs["env"] == env
+
+
 # --- run_command stream ---
 
 @patch("hookshot.runner.subprocess.Popen")

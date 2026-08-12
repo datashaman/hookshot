@@ -1,0 +1,15 @@
+# Example: env-var interpolation in commands (see reference/templates-and-filters.md).
+#
+# Declared values under `env` are defaults — the real process environment
+# always wins, so `CLAUDE_BIN=claude-next hookshot serve` overrides this
+# without editing the config.
+env:
+  CLAUDE_BIN: claude
+  CLAUDE_MODEL: opus
+
+hooks:
+  issues.opened:
+    - command: "${{ env.CLAUDE_BIN }} -p --model ${{ env.CLAUDE_MODEL }}"
+      stdin: |
+        Running as ${{ env.CLAUDE_BIN }}.
+        Issue #${{ issue.number }}: ${{ issue.title }}

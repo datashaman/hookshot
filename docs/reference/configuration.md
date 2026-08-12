@@ -15,6 +15,7 @@ Exhaustive description of supported top-level and per-hook keys as implemented i
 | `worktrees` | mapping | Optional; see [Worktrees](worktrees.md). |
 | `reactions` | mapping | Optional; see [Reactions](reactions.md). |
 | `agents` | mapping | Optional; reusable agent definitions. Each key is an agent name mapping to `command` (required) and `stdin` (optional base prompt). Hooks reference agents with `agent: <name>`. See [Agents](#agents) below. |
+| `env` | mapping | Optional; declares default environment variables available as `${{ env.NAME }}` in `command`/`stdin`/`if`/`load`/`store`/`clear`. Values are strings (non-scalars rejected) and support `${VAR}` expansion. A variable exported in the real process environment always overrides its declared default. See [Environment expansion](#environment-expansion). |
 
 ## Per-hook keys
 
@@ -65,11 +66,16 @@ Each agent definition accepts only two keys:
 
 ## Environment expansion
 
-Expanded early in `load_config` for: `secret`, `state_file`, `repo`, `worktrees.setup`, `worktrees.teardown`. Missing variables become empty string.
+There are two independent mechanisms, kept on disjoint fields so they never collide:
+
+1. **`${VAR}` — load-time, process environment only.** Expanded once in `load_config` for exactly: `secret`, `state_file`, `repo`, `worktrees.setup`, `worktrees.teardown`, and each value in the `env` block itself (so `CLAUDE_BIN: ${MY_CLAUDE}` composes). Missing variables become empty string.
+2. **`${{ env.NAME }}` — runtime template, config + process environment.** Works anywhere `${{ }}` templates already work: `command`, `stdin`, `if`, `load.key`, `store.key`/`values`/`log`, `clear`. Resolves against the merged map `{**env_block, **os.environ}` — a name exported at run time overrides its declared default in `env:`; an undeclared name still resolves if it's exported; otherwise it expands to an empty string. See [Templates and filters](templates-and-filters.md#environment-variables).
+
+`hookshot validate` warns (but does not fail) about any `${{ env.NAME }}` reference that is neither declared in `env:` nor set in the process environment — validation must not depend on the ambient environment to pass/fail.
 
 ## Validation (`hookshot validate`)
 
-Reports: bad `repo` format; invalid `timeout`; hook lists missing `command`; malformed `store` / `load` / `clear`; unsafe `worktrees.path`; invalid `reactions` keys or emoji names; undefined agent references; hooks with both `agent` and `command`; invalid agent definitions.
+Reports: bad `repo` format; invalid `timeout`; hook lists missing `command`; malformed `store` / `load` / `clear`; unsafe `worktrees.path`; invalid `reactions` keys or emoji names; undefined agent references; hooks with both `agent` and `command`; invalid agent definitions; invalid `env` keys/values. Also **warns** (non-fatal) about `${{ env.NAME }}` references with no declared default and no matching process environment variable.
 
 ## See also
 

@@ -51,6 +51,7 @@ def ensure_worktree(
     base_path: str,
     issue_number: int | str,
     setup_command: str | None = None,
+    env: dict[str, str] | None = None,
 ) -> Path:
     """Create a worktree for the given issue if it doesn't already exist.
 
@@ -103,6 +104,7 @@ def ensure_worktree(
             capture_output=True,
             text=True,
             timeout=300,
+            env=env,
         )
         if setup_result.returncode != 0:
             log.error("Worktree setup command failed: %s", setup_result.stderr.rstrip())
@@ -116,6 +118,7 @@ def remove_worktree(
     base_path: str,
     issue_number: int | str,
     teardown_command: str | None = None,
+    env: dict[str, str] | None = None,
 ) -> bool:
     """Remove the worktree and its branch for the given issue.
 
@@ -137,6 +140,7 @@ def remove_worktree(
                 capture_output=True,
                 text=True,
                 timeout=300,
+                env=env,
             )
             if teardown_result.returncode != 0:
                 log.warning("Worktree teardown command failed: %s", teardown_result.stderr.rstrip())

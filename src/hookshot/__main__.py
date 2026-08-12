@@ -7,7 +7,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .config import LOCAL_CONFIG_PATH, get_events, load_config, validate_config
+from .config import (
+    LOCAL_CONFIG_PATH,
+    get_events,
+    load_config,
+    resolved_env,
+    unresolved_env_refs,
+    validate_config,
+)
 from .matcher import match_and_run
 from .server import serve
 from .state import StateStore
@@ -202,6 +209,11 @@ def cmd_validate(args):
     total_commands = sum(len(cmds) for cmds in hooks.values())
     print(f"Config OK: {len(hooks)} hook(s), {total_commands} command(s)")
 
+    unresolved = unresolved_env_refs(config)
+    if unresolved:
+        for name in unresolved:
+            print(f"Warning: env.{name} is referenced but not set in the environment or 'env' config")
+
     repo = config.get("repo")
     if repo:
         events = get_events(config)
@@ -227,6 +239,12 @@ def cmd_serve(args):
         for err in errors:
             print(f"  - {err}", file=sys.stderr)
         sys.exit(1)
+
+    for name in unresolved_env_refs(config):
+        print(
+            f"Warning: env.{name} is referenced but not set in the environment or 'env' config",
+            file=sys.stderr,
+        )
 
     serve(config)
 
@@ -271,6 +289,7 @@ def cmd_test(args):
         state=state,
         worktrees=worktrees,
         default_timeout=config.get("timeout"),
+        env=resolved_env(config),
     )
     print(f"\nMatched and would execute {executed} command(s)")
 

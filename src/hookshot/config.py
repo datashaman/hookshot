@@ -91,9 +91,78 @@ def load_config(path: Path | None = None) -> dict:
     if "repo" in config:
         config["repo"] = expand_env(str(config["repo"]))
 
+    # Normalize the env block: coerce to strings, expand ${VAR} in values so
+    # declared defaults can compose with the process environment.
+    env_block = config.get("env") or {}
+    if isinstance(env_block, dict):
+        config["env"] = {
+            str(key): expand_env(str(value)) for key, value in env_block.items()
+        }
+    else:
+        config["env"] = {}
+
     _resolve_agents(config)
 
     return config
+
+
+def resolved_env(config: dict) -> dict[str, str]:
+    """Merge the declared ``env`` block with the process environment.
+
+    The process environment wins: a var exported at run time overrides the
+    config's declared default, so ``CLAUDE_BIN=... hookshot serve`` works
+    without editing the config.
+    """
+    return {**config.get("env", {}), **os.environ}
+
+
+# Matches ${{ env.NAME }} (with optional filter) inside a template string.
+_ENV_REF_RE = re.compile(r"\$\{\{\s*env\.([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def unresolved_env_refs(config: dict) -> list[str]:
+    """Return sorted names referenced via ${{ env.X }} that resolve to nothing.
+
+    A name is "unresolved" if it is neither declared in the config's ``env``
+    block nor set in the process environment. This is advisory only — used to
+    warn, not to fail validation, since it depends on the ambient environment.
+    """
+    declared = config.get("env", {})
+    strings: list[str] = []
+
+    for commands in config.get("hooks", {}).values():
+        if not isinstance(commands, list):
+            continue
+        for cmd in commands:
+            if not isinstance(cmd, dict):
+                continue
+            for key in ("command", "stdin"):
+                if key in cmd:
+                    strings.append(str(cmd[key]))
+            if "if" in cmd:
+                conditions = cmd["if"]
+                if isinstance(conditions, str):
+                    conditions = [conditions]
+                strings.extend(str(c) for c in conditions)
+            if "load" in cmd and isinstance(cmd["load"], dict) and "key" in cmd["load"]:
+                strings.append(str(cmd["load"]["key"]))
+            if "store" in cmd and isinstance(cmd["store"], dict):
+                store = cmd["store"]
+                if "key" in store:
+                    strings.append(str(store["key"]))
+                if isinstance(store.get("values"), dict):
+                    strings.extend(str(v) for v in store["values"].values())
+                if "log" in store:
+                    strings.append(str(store["log"]))
+            if "clear" in cmd and isinstance(cmd["clear"], list):
+                strings.extend(str(c) for c in cmd["clear"])
+
+    names = set()
+    for s in strings:
+        names.update(_ENV_REF_RE.findall(s))
+
+    unresolved = {name for name in names if name not in declared and name not in os.environ}
+    return sorted(unresolved)
 
 
 def _resolve_agents(config: dict):
@@ -210,6 +279,18 @@ def validate_config(config: dict) -> list[str]:
                 clear = cmd["clear"]
                 if not isinstance(clear, list):
                     errors.append(f"hooks.{event}[{i}].clear: must be a list")
+
+    # Validate env
+    env_block = config.get("env")
+    if env_block is not None and env_block != {}:
+        if not isinstance(env_block, dict):
+            errors.append("'env' must be a mapping")
+        else:
+            for key, value in env_block.items():
+                if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", str(key)):
+                    errors.append(f"env.{key}: invalid name (must match [A-Za-z_][A-Za-z0-9_]*)")
+                if isinstance(value, (dict, list)):
+                    errors.append(f"env.{key}: value must be a scalar (string, number, or boolean)")
 
     # Validate agents
     agents = config.get("agents")

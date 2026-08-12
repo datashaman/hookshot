@@ -5,7 +5,7 @@ AVAILABLE_WORKFLOWS = ("pr-review", "issue-triage", "full")
 # Shared agents used across workflows
 _REVIEWER_AGENT = """\
   reviewer:
-    command: "claude -p --dangerously-skip-permissions --model opus"
+    command: "${{{{ env.CLAUDE_BIN }}}} -p --dangerously-skip-permissions --model opus"
     stdin: |
       You are an adversarial code reviewer for the {repo} project.
       Your job is to find problems, not to be polite.
@@ -44,7 +44,7 @@ _REVIEWER_AGENT = """\
 
 _IMPLEMENTER_AGENT = """\
   implementer:
-    command: "claude -p --dangerously-skip-permissions --model sonnet"
+    command: "${{{{ env.CLAUDE_BIN }}}} -p --dangerously-skip-permissions --model sonnet"
     stdin: |
       You are the implementer for a PR on the {repo} project.
       Your job is to address feedback — fix bugs, improve code, and push new commits.
@@ -73,7 +73,7 @@ _IMPLEMENTER_AGENT = """\
 
 _ANALYST_AGENT = """\
   analyst:
-    command: "claude -p --dangerously-skip-permissions --model opus"
+    command: "${{{{ env.CLAUDE_BIN }}}} -p --dangerously-skip-permissions --model opus"
     stdin: |
       You are analyzing a new GitHub issue for the {repo} project.
       Be concise. Focus on feasibility, affected files, and a clear step-by-step plan.
@@ -89,7 +89,7 @@ _ANALYST_AGENT = """\
 
 _CONVERSATIONALIST_AGENT = """\
   conversationalist:
-    command: "claude -p --dangerously-skip-permissions --model sonnet"
+    command: "${{{{ env.CLAUDE_BIN }}}} -p --dangerously-skip-permissions --model sonnet"
     stdin: |
       You are discussing a GitHub issue for the {repo} project.
       Respond thoughtfully. If they ask questions about the plan, clarify.
@@ -107,6 +107,10 @@ _CONVERSATIONALIST_AGENT = """\
 def _pr_review_template(repo: str) -> str:
     return f"""\
 repo: {repo}
+
+# Override at run time, e.g. CLAUDE_BIN=claude-next hookshot serve
+env:
+  CLAUDE_BIN: claude
 
 agents:
 {_REVIEWER_AGENT.format(repo=repo)}
@@ -256,6 +260,10 @@ def _issue_triage_template(repo: str) -> str:
     return f"""\
 repo: {repo}
 
+# Override at run time, e.g. CLAUDE_BIN=claude-next hookshot serve
+env:
+  CLAUDE_BIN: claude
+
 agents:
 {_ANALYST_AGENT.format(repo=repo)}
 {_CONVERSATIONALIST_AGENT.format(repo=repo)}
@@ -278,7 +286,7 @@ hooks:
 
   issue_comment.created:
     # @implement — create a branch, implement, open PR
-    - command: "claude -p --dangerously-skip-permissions --model sonnet"
+    - command: "${{{{ env.CLAUDE_BIN }}}} -p --dangerously-skip-permissions --model sonnet"
       stdin: |
         You are working on a GitHub issue for the {repo} project.
 
@@ -342,6 +350,10 @@ def _full_template(repo: str) -> str:
     return f"""\
 repo: {repo}
 
+# Override at run time, e.g. CLAUDE_BIN=claude-next hookshot serve
+env:
+  CLAUDE_BIN: claude
+
 agents:
 {_ANALYST_AGENT.format(repo=repo)}
 {_REVIEWER_AGENT.format(repo=repo)}
@@ -366,7 +378,7 @@ hooks:
 
   issue_comment.created:
     # @implement — create a branch, implement, open PR
-    - command: "claude -p --dangerously-skip-permissions --model sonnet"
+    - command: "${{{{ env.CLAUDE_BIN }}}} -p --dangerously-skip-permissions --model sonnet"
       stdin: |
         You are working on a GitHub issue for the {repo} project.
 

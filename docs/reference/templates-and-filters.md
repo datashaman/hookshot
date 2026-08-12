@@ -8,7 +8,7 @@ ${{ dot.path | filter }}
 ${{ dot.path | filter arg }}
 ```
 
-- Resolution uses the GitHub JSON payload, or `state.*` when the path starts with `state.` and `load` provided context.
+- Resolution uses the GitHub JSON payload, or `state.*` when the path starts with `state.` and `load` provided context, or `env.*` for environment variables (see [Environment variables](#environment-variables) below).
 - Missing keys → empty string.
 - Booleans → `"true"` / `"false"`.
 - `null` → empty string.
@@ -47,9 +47,26 @@ Unknown filter names log a warning and return the pre-filter value unchanged (im
 
 After expansion, a condition is **falsy** if the string is (case-insensitive): empty, `false`, `null`, `none`, `0`. Everything else is truthy.
 
-## Environment variables in YAML
+## Environment variables
 
-Separate from `{{<` templates: strings can use `${ENV_VAR}` for keys listed under [Configuration: environment expansion](configuration.md#environment-expansion).
+Two ways environment variables reach a config, covering different fields — see [Configuration: environment expansion](configuration.md#environment-expansion) for exactly which fields each applies to:
+
+- **`${ENV_VAR}`** — load-time only, process environment only. Used in a handful of top-level fields (`secret`, `repo`, `worktrees.setup`, etc.) and in `env:` block values.
+- **`${{ env.NAME }}`** — a template namespace, resolved wherever `${{ }}` placeholders work (`command`, `stdin`, `if`, `load`, `store`, `clear`):
+
+  ```yaml
+  env:
+    CLAUDE_BIN: claude
+    CLAUDE_MODEL: opus
+
+  agents:
+    reviewer:
+      command: "${{ env.CLAUDE_BIN }} -p --model ${{ env.CLAUDE_MODEL }}"
+  ```
+
+  Resolution order: the real process environment always wins over the declared `env:` default, so `CLAUDE_BIN=claude-next hookshot serve` overrides it without touching the config. An undeclared name still resolves if it's exported in the process; otherwise it expands to an empty string, and `hookshot validate` warns about it. Filters compose normally: `${{ env.CLAUDE_MODEL | upper }}`.
+
+  Like every other placeholder, the expanded value is substituted into a command string that runs with `shell=True` and is **not shell-quoted** — avoid putting untrusted or special-character values in `env:` defaults that flow into `command`.
 
 ## See also
 

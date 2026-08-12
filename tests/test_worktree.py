@@ -160,6 +160,21 @@ def test_ensure_worktree_runs_setup(mock_run, mock_root, mock_valid, tmp_path):
 @patch("hookshot.worktree._is_valid_worktree", return_value=False)
 @patch("hookshot.worktree._git_repo_root", return_value=Path("/repo"))
 @patch("hookshot.worktree.subprocess.run")
+def test_ensure_worktree_setup_receives_env(mock_run, mock_root, mock_valid, tmp_path):
+    """The setup command's subprocess gets the merged config/process env."""
+    base = str(tmp_path / "worktrees")
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    env = {"CLAUDE_BIN": "claude-next"}
+
+    ensure_worktree(base, 42, setup_command="uv sync", env=env)
+
+    setup_call = mock_run.call_args_list[1]
+    assert setup_call[1]["env"] == env
+
+
+@patch("hookshot.worktree._is_valid_worktree", return_value=False)
+@patch("hookshot.worktree._git_repo_root", return_value=Path("/repo"))
+@patch("hookshot.worktree.subprocess.run")
 def test_ensure_worktree_raises_on_failure(mock_run, mock_root, mock_valid, tmp_path):
     base = str(tmp_path / "worktrees")
     mock_run.return_value = MagicMock(returncode=1, stderr="fatal error")
@@ -226,6 +241,22 @@ def test_remove_worktree_runs_teardown(mock_run, mock_root, tmp_path):
     assert teardown_call[1]["cwd"] == str(wt)
 
 
+@patch("hookshot.worktree._git_repo_root", return_value=Path("/repo"))
+@patch("hookshot.worktree.subprocess.run")
+def test_remove_worktree_teardown_receives_env(mock_run, mock_root, tmp_path):
+    """The teardown command's subprocess gets the merged config/process env."""
+    base = str(tmp_path / "worktrees")
+    wt = Path(base) / "issue-42"
+    wt.mkdir(parents=True)
+    mock_run.return_value = MagicMock(returncode=0)
+    env = {"CLAUDE_BIN": "claude-next"}
+
+    remove_worktree(base, 42, teardown_command="make clean", env=env)
+
+    teardown_call = mock_run.call_args_list[0]
+    assert teardown_call[1]["env"] == env
+
+
 # --- _resolve_worktree_cwd ---
 
 @patch("hookshot.matcher.ensure_worktree")
@@ -237,7 +268,20 @@ def test_resolve_worktree_cwd_with_load(mock_ensure):
 
     result = _resolve_worktree_cwd(cmd, payload, "issue_comment.created", config)
     assert result == "/tmp/wt/issue-5"
-    mock_ensure.assert_called_once_with("/tmp/wt", 5, setup_command=None)
+    mock_ensure.assert_called_once_with("/tmp/wt", 5, setup_command=None, env=None)
+
+
+@patch("hookshot.matcher.ensure_worktree")
+def test_resolve_worktree_cwd_passes_env(mock_ensure):
+    """env is forwarded through to ensure_worktree for setup command substitution."""
+    mock_ensure.return_value = Path("/tmp/wt/issue-5")
+    cmd = {"command": "echo hi", "load": {"key": "issue:repo:5"}}
+    payload = {"issue": {"number": 5}}
+    config = {"path": "/tmp/wt", "setup": None}
+    env = {"CLAUDE_BIN": "claude-next"}
+
+    _resolve_worktree_cwd(cmd, payload, "issue_comment.created", config, env)
+    mock_ensure.assert_called_once_with("/tmp/wt", 5, setup_command=None, env=env)
 
 
 def test_resolve_worktree_cwd_no_config():
@@ -294,7 +338,7 @@ def test_handle_close_worktree(mock_remove):
     payload = {"issue": {"number": 5}}
     config = {"path": "/tmp/wt", "teardown": "make clean"}
     _handle_close_worktree(payload, "issues.closed", config)
-    mock_remove.assert_called_once_with("/tmp/wt", 5, teardown_command="make clean")
+    mock_remove.assert_called_once_with("/tmp/wt", 5, teardown_command="make clean", env=None)
 
 
 @patch("hookshot.matcher.remove_worktree")
@@ -303,7 +347,17 @@ def test_handle_close_worktree_deleted_event(mock_remove):
     payload = {"issue": {"number": 5}}
     config = {"path": "/tmp/wt", "teardown": None}
     _handle_close_worktree(payload, "issues.deleted", config)
-    mock_remove.assert_called_once_with("/tmp/wt", 5, teardown_command=None)
+    mock_remove.assert_called_once_with("/tmp/wt", 5, teardown_command=None, env=None)
+
+
+@patch("hookshot.matcher.remove_worktree")
+def test_handle_close_worktree_passes_env(mock_remove):
+    """env is forwarded through to remove_worktree for teardown command substitution."""
+    payload = {"issue": {"number": 5}}
+    config = {"path": "/tmp/wt", "teardown": "make clean"}
+    env = {"CLAUDE_BIN": "claude-next"}
+    _handle_close_worktree(payload, "issues.closed", config, env)
+    mock_remove.assert_called_once_with("/tmp/wt", 5, teardown_command="make clean", env=env)
 
 
 @patch("hookshot.matcher.remove_worktree")

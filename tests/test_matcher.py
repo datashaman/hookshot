@@ -76,3 +76,12 @@ def test_match_and_run_passes_default_timeout(mock_run):
     match_and_run(hooks, "push", {}, default_timeout=900)
     mock_run.assert_called_once()
     assert mock_run.call_args.kwargs.get("default_timeout") == 900
+
+
+@patch("hookshot.matcher.run_command", return_value=True)
+def test_match_and_run_passes_env(mock_run):
+    hooks = {"push": [{"command": "echo x"}]}
+    env = {"CLAUDE_BIN": "claude-next"}
+    match_and_run(hooks, "push", {}, env=env)
+    mock_run.assert_called_once()
+    assert mock_run.call_args.kwargs.get("env") == env

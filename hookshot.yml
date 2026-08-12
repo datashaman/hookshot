@@ -1,5 +1,9 @@
 repo: datashaman/hookshot
 
+# Defaults — override at run time, e.g. CLAUDE_BIN=claude-next hookshot serve
+env:
+  CLAUDE_BIN: claude
+
 worktrees:
   path: .hookshot/worktrees
   setup: uv sync
@@ -12,7 +16,7 @@ reactions:
 
 agents:
   analyst:
-    command: "claude -p --dangerously-skip-permissions --model opus"
+    command: "${{ env.CLAUDE_BIN }} -p --dangerously-skip-permissions --model opus"
     stdin: |
       You are analyzing a new GitHub issue for the datashaman/hookshot project.
       Be concise. Focus on feasibility, affected files, and a clear step-by-step plan.
@@ -26,7 +30,7 @@ agents:
       <!-- hookshot:agent -->'
 
   reviewer:
-    command: "claude -p --dangerously-skip-permissions --model opus"
+    command: "${{ env.CLAUDE_BIN }} -p --dangerously-skip-permissions --model opus"
     stdin: |
       You are an adversarial code reviewer for the datashaman/hookshot project.
       Your job is to find problems, not to be polite.
@@ -63,7 +67,7 @@ agents:
       Focus on what's wrong or risky.
 
   implementer:
-    command: "claude -p --dangerously-skip-permissions --model sonnet"
+    command: "${{ env.CLAUDE_BIN }} -p --dangerously-skip-permissions --model sonnet"
     stdin: |
       You are the implementer for a PR on the datashaman/hookshot project.
       Your job is to address feedback — fix bugs, improve code, and push new commits.
@@ -90,7 +94,7 @@ agents:
          <!-- hookshot:implementer -->' --comment
 
   conversationalist:
-    command: "claude -p --dangerously-skip-permissions --model sonnet"
+    command: "${{ env.CLAUDE_BIN }} -p --dangerously-skip-permissions --model sonnet"
     stdin: |
       You are discussing a GitHub issue for the datashaman/hookshot project.
       Respond thoughtfully. If they ask questions about the plan, clarify.
@@ -120,7 +124,7 @@ hooks:
 
   issue_comment.created:
     # @implement — create a branch, implement, open PR
-    - command: "claude -p --dangerously-skip-permissions --model sonnet"
+    - command: "${{ env.CLAUDE_BIN }} -p --dangerously-skip-permissions --model sonnet"
       stdin: |
         You are working on a GitHub issue for the datashaman/hookshot project.
 
