@@ -108,6 +108,15 @@ def _pr_review_template(repo: str) -> str:
     return f"""\
 repo: {repo}
 
+# NOTE: If more than one person runs `hookshot serve` against this repo at the
+# same time (e.g. everyone forwarding with their own `gh webhook forward`),
+# GitHub delivers each event to every running instance — so every hook fires
+# once per instance, producing duplicate PR comments/reviews/commits. Either
+# run a single shared instance (one bot account, one machine/CI job), or scope
+# hooks to one person by adding a filter to their `if:` list, e.g.:
+#   if:
+#     - "${{{{ sender.login | eq your-github-username }}}}"
+
 # Override at run time, e.g. CLAUDE_BIN=claude-next hookshot serve
 env:
   CLAUDE_BIN: claude
@@ -260,6 +269,15 @@ def _issue_triage_template(repo: str) -> str:
     return f"""\
 repo: {repo}
 
+# NOTE: If more than one person runs `hookshot serve` against this repo at the
+# same time (e.g. everyone forwarding with their own `gh webhook forward`),
+# GitHub delivers each event to every running instance — so every hook fires
+# once per instance, producing duplicate issue comments/branches/PRs. Either
+# run a single shared instance (one bot account, one machine/CI job), or scope
+# hooks to one person by adding a filter to their `if:` list, e.g.:
+#   if:
+#     - "${{{{ sender.login | eq your-github-username }}}}"
+
 # Override at run time, e.g. CLAUDE_BIN=claude-next hookshot serve
 env:
   CLAUDE_BIN: claude
@@ -349,6 +367,15 @@ hooks:
 def _full_template(repo: str) -> str:
     return f"""\
 repo: {repo}
+
+# NOTE: If more than one person runs `hookshot serve` against this repo at the
+# same time (e.g. everyone forwarding with their own `gh webhook forward`),
+# GitHub delivers each event to every running instance — so every hook fires
+# once per instance, producing duplicate comments/reviews/branches/PRs. Either
+# run a single shared instance (one bot account, one machine/CI job), or scope
+# hooks to one person by adding a filter to their `if:` list, e.g.:
+#   if:
+#     - "${{{{ sender.login | eq your-github-username }}}}"
 
 # Override at run time, e.g. CLAUDE_BIN=claude-next hookshot serve
 env:

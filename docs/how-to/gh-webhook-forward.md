@@ -18,6 +18,29 @@ The HMAC secret GitHub uses for `X-Hub-Signature-256` must match the **expanded*
 
 Omit `repo` if you configure the webhook in GitHub pointed at your public URL (or another tunnel). You are responsible for event subscriptions and network reachability.
 
+## Multiple people, one repo
+
+`gh webhook forward` registers its own delivery target on the repo for as long as it runs. If two or more people each run `hookshot serve` against the *same* `repo` at the same time, GitHub delivers every event to each of their forwarders independently — every hook fires once per running instance, so you get duplicate PR comments, duplicate reviews, duplicate branches/PRs, and possibly racing pushes to the same branch.
+
+Pick one:
+
+- **Run a single shared instance** — one bot account or one CI/always-on box forwards for the whole team; everyone else's local `hookshot serve` stays off (or omits `repo`/uses `hookshot test` for dry runs).
+- **Scope hooks to a person** if several people genuinely need their own running instance, add a filter to each hook's `if:` list so it only acts on work relevant to that person, e.g.:
+
+  ```yaml
+  if:
+    - "${{ sender.login | eq your-github-username }}"
+  ```
+
+  or, for issue/PR assignment:
+
+  ```yaml
+  if:
+    - "${{ issue.assignee.login | eq your-github-username }}"
+  ```
+
+The generated `hookshot init` config includes a commented note about this near the top of the file.
+
 ## See also
 
 - [Tutorial: webhook-forward](../tutorials/webhook-forward.md)
