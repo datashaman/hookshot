@@ -89,6 +89,22 @@ def test_filter_not_contains():
     assert apply_filter("hello", "not_contains ell") == "false"
 
 
+def test_filter_starts_with():
+    assert apply_filter("@implement", "starts_with @implement") == "true"
+    assert apply_filter("@implement please also update docs", "starts_with @implement") == "true"
+    assert apply_filter("`@implement`", "starts_with @implement") == "true"
+    assert apply_filter("Don't @implement yet, I have a question", "starts_with @implement") == "false"
+    assert apply_filter("Don't `@implement` yet, I have a question", "starts_with @implement") == "false"
+    assert apply_filter("  @implement  ", "starts_with @implement") == "true"
+    assert apply_filter("@IMPLEMENT", "starts_with @implement") == "true"
+
+
+def test_filter_not_starts_with():
+    assert apply_filter("Don't @implement yet, I have a question", "not_starts_with @implement") == "true"
+    assert apply_filter("@implement", "not_starts_with @implement") == "false"
+    assert apply_filter("`@implement`", "not_starts_with @implement") == "false"
+
+
 def test_filter_eq():
     assert apply_filter("hello", "eq hello") == "true"
     assert apply_filter("hello", "eq HELLO") == "true"

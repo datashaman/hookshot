@@ -175,7 +175,7 @@ hooks:
         - "${{{{ sender.type | neq Bot }}}}"
         - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
         - "${{{{ issue.pull_request.url | neq }}}}"
-        - "${{{{ comment.body | contains @review }}}}"
+        - "${{{{ comment.body | starts_with @review }}}}"
       load:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ issue.number }}}}"
       store:
@@ -206,7 +206,7 @@ hooks:
         - "${{{{ sender.type | neq Bot }}}}"
         - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
         - "${{{{ issue.pull_request.url | neq }}}}"
-        - "${{{{ comment.body | not_contains @review }}}}"
+        - "${{{{ comment.body | not_starts_with @review }}}}"
       load:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ issue.number }}}}"
       store:
@@ -366,7 +366,7 @@ hooks:
       if:
         - "${{{{ sender.type | neq Bot }}}}"
         - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
-        - "${{{{ comment.body | contains @implement }}}}"
+        - "${{{{ comment.body | starts_with @implement }}}}"
         - "${{{{ issue.pull_request.url | eq }}}}"
       load:
         key: "issue:${{{{ repository.full_name }}}}:${{{{ issue.number }}}}"
@@ -386,7 +386,7 @@ hooks:
         - "${{{{ sender.type | neq Bot }}}}"
         - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
         - "${{{{ comment.body | not_contains <!-- hookshot:reviewer --> }}}}"
-        - "${{{{ comment.body | not_contains @implement }}}}"
+        - "${{{{ comment.body | not_starts_with @implement }}}}"
         - "${{{{ issue.pull_request.url | eq }}}}"
       load:
         key: "issue:${{{{ repository.full_name }}}}:${{{{ issue.number }}}}"
@@ -473,7 +473,7 @@ hooks:
       if:
         - "${{{{ sender.type | neq Bot }}}}"
         - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
-        - "${{{{ comment.body | contains @implement }}}}"
+        - "${{{{ comment.body | starts_with @implement }}}}"
         - "${{{{ issue.pull_request.url | eq }}}}"
       load:
         key: "issue:${{{{ repository.full_name }}}}:${{{{ issue.number }}}}"
@@ -499,7 +499,7 @@ hooks:
         - "${{{{ sender.type | neq Bot }}}}"
         - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
         - "${{{{ issue.pull_request.url | neq }}}}"
-        - "${{{{ comment.body | contains @review }}}}"
+        - "${{{{ comment.body | starts_with @review }}}}"
       load:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ issue.number }}}}"
       store:
@@ -530,7 +530,7 @@ hooks:
         - "${{{{ sender.type | neq Bot }}}}"
         - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
         - "${{{{ issue.pull_request.url | neq }}}}"
-        - "${{{{ comment.body | not_contains @review }}}}"
+        - "${{{{ comment.body | not_starts_with @review }}}}"
       load:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ issue.number }}}}"
       store:
@@ -549,7 +549,7 @@ hooks:
         - "${{{{ sender.type | neq Bot }}}}"
         - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
         - "${{{{ comment.body | not_contains <!-- hookshot:reviewer --> }}}}"
-        - "${{{{ comment.body | not_contains @implement }}}}"
+        - "${{{{ comment.body | not_starts_with @implement }}}}"
         - "${{{{ issue.pull_request.url | eq }}}}"
       load:
         key: "issue:${{{{ repository.full_name }}}}:${{{{ issue.number }}}}"

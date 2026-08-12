@@ -110,6 +110,12 @@ def apply_filter(value: str | list, filter_expr: str) -> str:
     Supported filters:
         contains <arg>      → "true" if value contains arg (case-insensitive)
         not_contains <arg>  → "true" if value does NOT contain arg (case-insensitive)
+        starts_with <arg>     → "true" if value, trimmed of whitespace and
+            wrapping backticks, starts with arg (case-insensitive). Use for
+            command-style triggers (e.g. a comment beginning with "@implement")
+            so mentioning the word mid-sentence ("don't @implement yet") doesn't
+            also match — 'contains' can't tell the two apart.
+        not_starts_with <arg> → negation of starts_with
         eq <arg>            → "true" if value equals arg (case-insensitive)
         neq <arg>           → "true" if value does NOT equal arg (case-insensitive)
         lower               → lowercase
@@ -162,6 +168,10 @@ def apply_filter(value: str | list, filter_expr: str) -> str:
         return "true" if arg.lower() in value.lower() else "false"
     elif name == "not_contains":
         return "true" if arg.lower() not in value.lower() else "false"
+    elif name == "starts_with":
+        return "true" if value.strip().strip("`").lower().startswith(arg.lower()) else "false"
+    elif name == "not_starts_with":
+        return "true" if not value.strip().strip("`").lower().startswith(arg.lower()) else "false"
     elif name == "eq":
         return "true" if value.strip().lower() == arg.lower() else "false"
     elif name == "neq":
