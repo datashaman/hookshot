@@ -391,6 +391,41 @@ def test_resolve_worktree_cwd_raises_on_failure(mock_ensure):
         _resolve_worktree_cwd(cmd, payload, "issue_comment.created", config)
 
 
+@patch("hookshot.matcher.ensure_worktree")
+def test_resolve_worktree_cwd_cache_reuses_success(mock_ensure):
+    """Multiple commands in the same delivery share one worktree — the
+    second call must not repeat the git fetch/worktree add."""
+    mock_ensure.return_value = Path("/tmp/wt/issue-5")
+    cmd = {"command": "echo hi", "load": {"key": "issue:repo:5"}}
+    payload = {"issue": {"number": 5}}
+    config = {"path": "/tmp/wt", "setup": None}
+    cache: dict = {}
+
+    first = _resolve_worktree_cwd(cmd, payload, "issue_comment.created", config, cache=cache)
+    second = _resolve_worktree_cwd(cmd, payload, "issue_comment.created", config, cache=cache)
+
+    assert first == second == "/tmp/wt/issue-5"
+    mock_ensure.assert_called_once()
+
+
+@patch("hookshot.matcher.ensure_worktree")
+def test_resolve_worktree_cwd_cache_reuses_failure(mock_ensure):
+    """A failed worktree creation must not be retried for every command in
+    the same delivery — each retry hits the identical doomed git call."""
+    mock_ensure.side_effect = RuntimeError("already used by worktree")
+    cmd = {"command": "echo hi", "load": {"key": "issue:repo:5"}}
+    payload = {"issue": {"number": 5}}
+    config = {"path": "/tmp/wt", "setup": None}
+    cache: dict = {}
+
+    with pytest.raises(RuntimeError):
+        _resolve_worktree_cwd(cmd, payload, "issue_comment.created", config, cache=cache)
+    with pytest.raises(RuntimeError):
+        _resolve_worktree_cwd(cmd, payload, "issue_comment.created", config, cache=cache)
+
+    mock_ensure.assert_called_once()
+
+
 # --- _handle_close_worktree ---
 
 @patch("hookshot.matcher.remove_worktree")
@@ -475,6 +510,31 @@ def test_match_and_run_skips_on_worktree_failure(mock_subprocess, mock_ensure):
 
     assert executed == 0
     mock_subprocess.assert_not_called()
+
+
+@patch("hookshot.matcher.ensure_worktree")
+@patch("hookshot.runner.subprocess.run")
+def test_match_and_run_worktree_failure_not_retried_per_command(mock_subprocess, mock_ensure):
+    """Multiple commands sharing one worktree (same hook, same issue) hit
+    the same doomed git call if creation fails -- only the first should
+    actually attempt it; the rest reuse the cached failure and skip fast."""
+    mock_ensure.side_effect = RuntimeError("already used by worktree")
+
+    hooks = {
+        "issue_comment.created": [
+            {"command": "echo one", "load": {"key": "issue:repo:5"}},
+            {"command": "echo two", "load": {"key": "issue:repo:5"}},
+            {"command": "echo three", "load": {"key": "issue:repo:5"}},
+        ],
+    }
+    payload = {"action": "created", "issue": {"number": 5}}
+    worktrees = {"path": "/tmp/wt", "setup": None}
+
+    executed = match_and_run(hooks, "issue_comment", payload, worktrees=worktrees)
+
+    assert executed == 0
+    mock_subprocess.assert_not_called()
+    mock_ensure.assert_called_once()
 
 
 @patch("hookshot.runner.subprocess.run")

@@ -23,11 +23,19 @@ def _resolve_worktree_cwd(
     qualified: str | None,
     worktrees_config: dict | None,
     env: dict[str, str] | None = None,
+    cache: dict[tuple, str | RuntimeError] | None = None,
 ) -> str | None:
     """Determine the working directory for a command.
 
     If worktrees are configured and the command has a load directive with an
     issue key, create/reuse a worktree and return its path.
+
+    ``cache`` memoizes the (base_path, issue_number, branch) -> result for
+    the lifetime of one webhook delivery: every command sharing the same
+    hook key resolves to the same worktree, so without this each of them
+    independently repeats the same git fetch and hits the same failure
+    (e.g. a branch already checked out elsewhere) rather than skipping
+    the rest of the batch after the first one fails.
     """
     if not worktrees_config:
         return None
@@ -53,8 +61,23 @@ def _resolve_worktree_cwd(
     # content instead of the PR being reviewed.
     branch = payload.get("pull_request", {}).get("head", {}).get("ref") or None
 
-    wt_path = ensure_worktree(base_path, issue_number, setup_command=setup, env=env, branch=branch)
-    return str(wt_path)
+    cache_key = (base_path, issue_number, branch)
+    if cache is not None and cache_key in cache:
+        cached = cache[cache_key]
+        if isinstance(cached, RuntimeError):
+            raise cached
+        return cached
+
+    try:
+        wt_path = str(ensure_worktree(base_path, issue_number, setup_command=setup, env=env, branch=branch))
+    except RuntimeError as e:
+        if cache is not None:
+            cache[cache_key] = e
+        raise
+
+    if cache is not None:
+        cache[cache_key] = wt_path
+    return wt_path
 
 
 def _handle_close_worktree(
@@ -108,6 +131,7 @@ def match_and_run(
 
     matched = False
     executed = 0
+    worktree_cache: dict[tuple, str | RuntimeError] = {}
 
     log.info("Processing event: %s (action: %s)", event, action or "-")
 
@@ -119,7 +143,7 @@ def match_and_run(
             log.info("Matched hook: %s → %d command(s)", hook_key, len(commands))
             for i, cmd in enumerate(commands, 1):
                 try:
-                    cwd = _resolve_worktree_cwd(cmd, payload, qualified, worktrees, env)
+                    cwd = _resolve_worktree_cwd(cmd, payload, qualified, worktrees, env, worktree_cache)
                 except RuntimeError:
                     log.error("  Skipping command %d/%d (worktree creation failed): %s", i, len(commands), cmd.get("command", "?"))
                     continue
