@@ -136,8 +136,6 @@ hooks:
         Body: ${{{{ pull_request.body }}}}
 
         Use PR number ${{{{ pull_request.number }}}} for all gh commands.
-      if:
-        - "${{{{ sender.type | neq Bot }}}}"
       store:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
         values:
@@ -523,8 +521,6 @@ hooks:
         Body: ${{{{ pull_request.body }}}}
 
         Use PR number ${{{{ pull_request.number }}}} for all gh commands.
-      if:
-        - "${{{{ sender.type | neq Bot }}}}"
       store:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
         values:
