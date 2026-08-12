@@ -71,6 +71,19 @@ def test_extract_issue_number_missing():
     assert extract_issue_number({"issue": {}}) is None
 
 
+def test_extract_issue_number_from_pull_request_payload():
+    """pull_request and pull_request_review payloads have no top-level
+    'issue' key — only 'pull_request'. Without this fallback, worktree
+    isolation silently never activates for PR review loop commands."""
+    payload = {"pull_request": {"number": 9}}
+    assert extract_issue_number(payload) == 9
+
+
+def test_extract_issue_number_prefers_issue_over_pull_request():
+    payload = {"issue": {"number": 5}, "pull_request": {"number": 9}}
+    assert extract_issue_number(payload) == 5
+
+
 # --- ensure_worktree ---
 
 @patch("hookshot.worktree._is_valid_worktree", return_value=False)
@@ -88,6 +101,37 @@ def test_ensure_worktree_creates_new(mock_run, mock_root, mock_valid, tmp_path):
     assert args[:3] == ["git", "worktree", "add"]
     assert "-b" in args
     assert "hookshot/issue-42" in args
+
+
+@patch("hookshot.worktree._is_valid_worktree", return_value=False)
+@patch("hookshot.worktree._git_repo_root", return_value=Path("/repo"))
+@patch("hookshot.worktree.subprocess.run")
+def test_ensure_worktree_with_branch_tracks_existing_branch(mock_run, mock_root, mock_valid, tmp_path):
+    """PR-loop worktrees must resume the PR's actual head branch, not a
+    fresh hookshot/issue-N branch off HEAD."""
+    base = str(tmp_path / "worktrees")
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+    result = ensure_worktree(base, 44, branch="fix/hookshot-loop-cap")
+
+    assert result == Path(base) / "issue-44"
+    assert mock_run.call_count == 2
+    fetch_args, worktree_args = (c[0][0] for c in mock_run.call_args_list)
+    assert fetch_args == ["git", "fetch", "origin", "fix/hookshot-loop-cap"]
+    assert worktree_args == ["git", "worktree", "add", str(Path(base) / "issue-44"), "fix/hookshot-loop-cap"]
+    assert "-b" not in worktree_args
+    assert "hookshot/issue-44" not in worktree_args
+
+
+@patch("hookshot.worktree._is_valid_worktree", return_value=False)
+@patch("hookshot.worktree._git_repo_root", return_value=Path("/repo"))
+@patch("hookshot.worktree.subprocess.run")
+def test_ensure_worktree_with_branch_raises_on_fetch_failure(mock_run, mock_root, mock_valid, tmp_path):
+    base = str(tmp_path / "worktrees")
+    mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="fetch failed")
+
+    with pytest.raises(RuntimeError, match="git fetch failed"):
+        ensure_worktree(base, 44, branch="fix/hookshot-loop-cap")
 
 
 @patch("hookshot.worktree._is_valid_worktree", return_value=True)
@@ -268,7 +312,7 @@ def test_resolve_worktree_cwd_with_load(mock_ensure):
 
     result = _resolve_worktree_cwd(cmd, payload, "issue_comment.created", config)
     assert result == "/tmp/wt/issue-5"
-    mock_ensure.assert_called_once_with("/tmp/wt", 5, setup_command=None, env=None)
+    mock_ensure.assert_called_once_with("/tmp/wt", 5, setup_command=None, env=None, branch=None)
 
 
 @patch("hookshot.matcher.ensure_worktree")
@@ -281,7 +325,7 @@ def test_resolve_worktree_cwd_passes_env(mock_ensure):
     env = {"CLAUDE_BIN": "claude-next"}
 
     _resolve_worktree_cwd(cmd, payload, "issue_comment.created", config, env)
-    mock_ensure.assert_called_once_with("/tmp/wt", 5, setup_command=None, env=env)
+    mock_ensure.assert_called_once_with("/tmp/wt", 5, setup_command=None, env=env, branch=None)
 
 
 def test_resolve_worktree_cwd_no_config():
@@ -297,11 +341,27 @@ def test_resolve_worktree_cwd_no_load():
     assert _resolve_worktree_cwd(cmd, payload, "issue_comment.created", config) is None
 
 
-def test_resolve_worktree_cwd_no_issue():
-    cmd = {"command": "echo hi", "load": {"key": "pr:repo:5"}}
-    payload = {"pull_request": {"number": 5}}
+def test_resolve_worktree_cwd_no_issue_or_pull_request():
+    """A payload with neither issue nor pull_request has no number to key on."""
+    cmd = {"command": "echo hi", "load": {"key": "other:repo:5"}}
+    payload = {}
     config = {"path": "/tmp/wt", "setup": None}
-    assert _resolve_worktree_cwd(cmd, payload, "pull_request.opened", config) is None
+    assert _resolve_worktree_cwd(cmd, payload, "push", config) is None
+
+
+@patch("hookshot.matcher.ensure_worktree")
+def test_resolve_worktree_cwd_pull_request_uses_pr_number_and_head_branch(mock_ensure):
+    """pull_request/pull_request_review payloads have no top-level 'issue'
+    key — worktree isolation must still apply, keyed by PR number, tracking
+    the PR's actual head branch rather than spawning a fresh one."""
+    mock_ensure.return_value = Path("/tmp/wt/issue-5")
+    cmd = {"command": "echo hi", "load": {"key": "pr:repo:5"}}
+    payload = {"pull_request": {"number": 5, "head": {"ref": "fix/some-branch"}}}
+    config = {"path": "/tmp/wt", "setup": None}
+
+    result = _resolve_worktree_cwd(cmd, payload, "pull_request.opened", config)
+    assert result == "/tmp/wt/issue-5"
+    mock_ensure.assert_called_once_with("/tmp/wt", 5, setup_command=None, env=None, branch="fix/some-branch")
 
 
 def test_resolve_worktree_cwd_close_event():

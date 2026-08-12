@@ -52,8 +52,14 @@ def ensure_worktree(
     issue_number: int | str,
     setup_command: str | None = None,
     env: dict[str, str] | None = None,
+    branch: str | None = None,
 ) -> Path:
     """Create a worktree for the given issue if it doesn't already exist.
+
+    ``branch``, when given, is an *existing* branch to track — used for the
+    PR reviewer/implementer loop, where the worktree must resume the PR's
+    actual head branch, not a fresh one. Without it, a new branch is created
+    off HEAD (the ``@implement`` flow, where no branch exists yet).
 
     Returns the worktree path.
     Raises RuntimeError if worktree creation or setup fails.
@@ -72,18 +78,18 @@ def ensure_worktree(
 
     wt_path.parent.mkdir(parents=True, exist_ok=True)
 
-    branch = f"hookshot/issue-{issue_number}"
-    log.info("Creating worktree: %s (branch: %s)", wt_path, branch)
+    if branch:
+        log.info("Fetching branch: %s", branch)
+        fetch_result = subprocess.run(
+            ["git", "fetch", "origin", branch],
+            capture_output=True,
+            text=True,
+        )
+        if fetch_result.returncode != 0:
+            log.error("Failed to fetch branch %s: %s", branch, fetch_result.stderr.rstrip())
+            raise RuntimeError(f"git fetch failed: {fetch_result.stderr.rstrip()}")
 
-    result = subprocess.run(
-        ["git", "worktree", "add", "-b", branch, str(wt_path)],
-        capture_output=True,
-        text=True,
-    )
-
-    if result.returncode != 0:
-        # Branch may already exist — try without -b
-        log.info("Branch %s may already exist, retrying without -b", branch)
+        log.info("Creating worktree: %s (tracking existing branch: %s)", wt_path, branch)
         result = subprocess.run(
             ["git", "worktree", "add", str(wt_path), branch],
             capture_output=True,
@@ -92,6 +98,27 @@ def ensure_worktree(
         if result.returncode != 0:
             log.error("Failed to create worktree: %s", result.stderr.rstrip())
             raise RuntimeError(f"git worktree add failed: {result.stderr.rstrip()}")
+    else:
+        new_branch = f"hookshot/issue-{issue_number}"
+        log.info("Creating worktree: %s (branch: %s)", wt_path, new_branch)
+
+        result = subprocess.run(
+            ["git", "worktree", "add", "-b", new_branch, str(wt_path)],
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            # Branch may already exist — try without -b
+            log.info("Branch %s may already exist, retrying without -b", new_branch)
+            result = subprocess.run(
+                ["git", "worktree", "add", str(wt_path), new_branch],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                log.error("Failed to create worktree: %s", result.stderr.rstrip())
+                raise RuntimeError(f"git worktree add failed: {result.stderr.rstrip()}")
 
     log.info("Worktree created: %s", wt_path)
 
@@ -175,9 +202,18 @@ def remove_worktree(
 
 
 def extract_issue_number(payload: dict) -> int | None:
-    """Extract the issue number from a webhook payload, if present."""
+    """Extract the issue or PR number from a webhook payload, if present.
+
+    ``pull_request`` and ``pull_request_review`` payloads have no top-level
+    ``issue`` key (only ``issue_comment`` does, even for PR comments), so
+    fall back to ``pull_request.number`` or the loop is silently unisolated.
+    """
     issue = payload.get("issue", {})
     number = issue.get("number")
+    if number is not None:
+        return int(number)
+    pull_request = payload.get("pull_request", {})
+    number = pull_request.get("number")
     if number is not None:
         return int(number)
     return None

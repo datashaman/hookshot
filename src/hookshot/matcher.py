@@ -47,7 +47,13 @@ def _resolve_worktree_cwd(
     base_path = worktrees_config["path"]
     setup = worktrees_config.get("setup")
 
-    wt_path = ensure_worktree(base_path, issue_number, setup_command=setup, env=env)
+    # PR payloads (pull_request, pull_request_review) carry the PR's actual
+    # head branch — the worktree must resume that branch, not spawn a fresh
+    # one, or the reviewer/implementer loop would run against disconnected
+    # content instead of the PR being reviewed.
+    branch = payload.get("pull_request", {}).get("head", {}).get("ref") or None
+
+    wt_path = ensure_worktree(base_path, issue_number, setup_command=setup, env=env, branch=branch)
     return str(wt_path)
 
 
