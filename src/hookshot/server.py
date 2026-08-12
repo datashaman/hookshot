@@ -14,6 +14,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from .config import get_events, resolved_env
 from .matcher import match_and_run
+from .runner import _emit_subprocess_line
 from .state import StateStore
 
 log = logging.getLogger("hookshot")
@@ -337,7 +338,31 @@ def _start_gh_forward(config: dict, port: int) -> subprocess.Popen:
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
     )
+    _drain_gh_forward_output(proc)
 
     return proc
+
+
+def _drain_gh_forward_output(proc: subprocess.Popen) -> None:
+    """Stream gh webhook forward's stdout/stderr to hookshot.log.
+
+    Without this, a crash only ever logs "exited (code 1)" with no way to
+    tell why — the child's own error message was piped and silently
+    discarded.
+    """
+
+    def drain(stream, label: str) -> None:
+        try:
+            for line in iter(stream.readline, ""):
+                if line:
+                    _emit_subprocess_line(label, line)
+        finally:
+            stream.close()
+
+    assert proc.stdout is not None and proc.stderr is not None
+    threading.Thread(target=drain, args=(proc.stdout, "stdout"), name="gh-forward-stdout", daemon=True).start()
+    threading.Thread(target=drain, args=(proc.stderr, "stderr"), name="gh-forward-stderr", daemon=True).start()
