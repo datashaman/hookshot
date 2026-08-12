@@ -162,7 +162,7 @@ hooks:
         Use PR number ${{{{ issue.number }}}} for all gh commands.
       if:
         - "${{{{ sender.type | neq Bot }}}}"
-        - "${{{{ comment.body | not_contains hookshot:agent }}}}"
+        - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
         - "${{{{ issue.pull_request.url | neq }}}}"
         - "${{{{ comment.body | contains @review }}}}"
       load:
@@ -193,7 +193,7 @@ hooks:
         <!-- hookshot:agent -->'
       if:
         - "${{{{ sender.type | neq Bot }}}}"
-        - "${{{{ comment.body | not_contains hookshot:agent }}}}"
+        - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
         - "${{{{ issue.pull_request.url | neq }}}}"
         - "${{{{ comment.body | not_contains @review }}}}"
       load:
@@ -220,8 +220,8 @@ hooks:
 
         Use PR number ${{{{ pull_request.number }}}} for all gh commands.
       if:
-        - "${{{{ review.body | contains hookshot:reviewer }}}}"
-        - "${{{{ review.body | not_contains hookshot:approved }}}}"
+        - "${{{{ review.body | contains <!-- hookshot:reviewer --> }}}}"
+        - "${{{{ review.body | not_contains <!-- hookshot:approved --> }}}}"
       load:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
       store:
@@ -247,8 +247,8 @@ hooks:
 
         Be honest. If it's fixed, say so and approve. If not, be specific about what's still wrong.
       if:
-        - "${{{{ review.body | contains hookshot:implementer }}}}"
-        - "${{{{ review.body | not_contains hookshot:approved }}}}"
+        - "${{{{ review.body | contains <!-- hookshot:implementer --> }}}}"
+        - "${{{{ review.body | not_contains <!-- hookshot:approved --> }}}}"
       load:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
       store:
@@ -326,7 +326,7 @@ hooks:
            <!-- hookshot:agent -->'
       if:
         - "${{{{ sender.type | neq Bot }}}}"
-        - "${{{{ comment.body | not_contains hookshot:agent }}}}"
+        - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
         - "${{{{ comment.body | contains @implement }}}}"
       load:
         key: "issue:${{{{ repository.full_name }}}}:${{{{ issue.number }}}}"
@@ -344,8 +344,8 @@ hooks:
         ${{{{ comment.body }}}}
       if:
         - "${{{{ sender.type | neq Bot }}}}"
-        - "${{{{ comment.body | not_contains hookshot:agent }}}}"
-        - "${{{{ comment.body | not_contains hookshot:reviewer }}}}"
+        - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
+        - "${{{{ comment.body | not_contains <!-- hookshot:reviewer --> }}}}"
         - "${{{{ comment.body | not_contains @implement }}}}"
         - "${{{{ issue.pull_request.url | eq }}}}"
       load:
@@ -427,7 +427,7 @@ hooks:
            <!-- hookshot:agent -->'
       if:
         - "${{{{ sender.type | neq Bot }}}}"
-        - "${{{{ comment.body | not_contains hookshot:agent }}}}"
+        - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
         - "${{{{ comment.body | contains @implement }}}}"
       load:
         key: "issue:${{{{ repository.full_name }}}}:${{{{ issue.number }}}}"
@@ -451,7 +451,7 @@ hooks:
         Use PR number ${{{{ issue.number }}}} for all gh commands.
       if:
         - "${{{{ sender.type | neq Bot }}}}"
-        - "${{{{ comment.body | not_contains hookshot:agent }}}}"
+        - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
         - "${{{{ issue.pull_request.url | neq }}}}"
         - "${{{{ comment.body | contains @review }}}}"
       load:
@@ -482,7 +482,7 @@ hooks:
         <!-- hookshot:agent -->'
       if:
         - "${{{{ sender.type | neq Bot }}}}"
-        - "${{{{ comment.body | not_contains hookshot:agent }}}}"
+        - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
         - "${{{{ issue.pull_request.url | neq }}}}"
         - "${{{{ comment.body | not_contains @review }}}}"
       load:
@@ -501,8 +501,8 @@ hooks:
         ${{{{ comment.body }}}}
       if:
         - "${{{{ sender.type | neq Bot }}}}"
-        - "${{{{ comment.body | not_contains hookshot:agent }}}}"
-        - "${{{{ comment.body | not_contains hookshot:reviewer }}}}"
+        - "${{{{ comment.body | not_contains <!-- hookshot:agent --> }}}}"
+        - "${{{{ comment.body | not_contains <!-- hookshot:reviewer --> }}}}"
         - "${{{{ comment.body | not_contains @implement }}}}"
         - "${{{{ issue.pull_request.url | eq }}}}"
       load:
@@ -548,8 +548,8 @@ hooks:
 
         Use PR number ${{{{ pull_request.number }}}} for all gh commands.
       if:
-        - "${{{{ review.body | contains hookshot:reviewer }}}}"
-        - "${{{{ review.body | not_contains hookshot:approved }}}}"
+        - "${{{{ review.body | contains <!-- hookshot:reviewer --> }}}}"
+        - "${{{{ review.body | not_contains <!-- hookshot:approved --> }}}}"
       load:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
       store:
@@ -575,8 +575,8 @@ hooks:
 
         Be honest. If it's fixed, say so and approve. If not, be specific about what's still wrong.
       if:
-        - "${{{{ review.body | contains hookshot:implementer }}}}"
-        - "${{{{ review.body | not_contains hookshot:approved }}}}"
+        - "${{{{ review.body | contains <!-- hookshot:implementer --> }}}}"
+        - "${{{{ review.body | not_contains <!-- hookshot:approved --> }}}}"
       load:
         key: "pr:${{{{ repository.full_name }}}}:${{{{ pull_request.number }}}}"
       store:
