@@ -18,5 +18,6 @@ Values enforced or assumed by Hookshot unless overridden in config or CLI.
 | GhForwardSupervisor max backoff | `300` s | `MAX_DELAY` |
 | GhForwardSupervisor max consecutive failures | `10` | `MAX_RETRIES` |
 | Reaction API subprocess timeout | `30` s | `hookshot.reactions` |
+| `notify_on_failure` | `false` | Opt-in; posts a comment on the triggering issue/PR on non-zero exit, timeout, or exception |
 
 If a default changes in code, update this table in the same commit.

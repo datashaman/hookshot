@@ -73,6 +73,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
         worktrees = self.server.hookshot_config.get("worktrees")
         default_timeout = self.server.hookshot_config.get("timeout")
         env = resolved_env(self.server.hookshot_config)
+        notify_on_failure = bool(self.server.hookshot_config.get("notify_on_failure"))
 
         self.server.hookshot_executor.submit(
             _run_webhook_commands,
@@ -86,6 +87,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
             worktrees,
             default_timeout,
             env,
+            notify_on_failure,
         )
 
         log.info(
@@ -122,6 +124,7 @@ def _run_webhook_commands(
     worktrees: dict | None,
     default_timeout: int | None,
     env: dict[str, str] | None = None,
+    notify_on_failure: bool = False,
 ) -> None:
     """Run hook commands in a thread pool worker (HTTP handler returns before this)."""
     threading.current_thread().name = f"hookshot-{work_id}"
@@ -142,6 +145,7 @@ def _run_webhook_commands(
             worktrees=worktrees,
             default_timeout=default_timeout,
             env=env,
+            notify_on_failure=notify_on_failure,
         )
         log.info(
             "Webhook work finished work_id=%s delivery=%s executed=%d",

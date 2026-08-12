@@ -9,6 +9,10 @@ repo: datashaman/hookshot
 #   if:
 #     - "${{ sender.login | eq your-github-username }}"
 
+# Post a comment on the issue/PR when a command fails (non-zero exit, timeout,
+# or exception) — otherwise a failure is visible only via hookshot.log.
+notify_on_failure: true
+
 # Defaults — override at run time, e.g. CLAUDE_BIN=claude-next hookshot serve
 env:
   CLAUDE_BIN: claude

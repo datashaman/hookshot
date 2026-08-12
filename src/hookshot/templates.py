@@ -117,6 +117,11 @@ repo: {repo}
 #   if:
 #     - "${{{{ sender.login | eq your-github-username }}}}"
 
+# Post a comment on the issue/PR when a command fails (non-zero exit, timeout,
+# or exception) — otherwise a failure is visible only via the `failed`
+# reaction (if configured) and hookshot.log.
+notify_on_failure: true
+
 # Override at run time, e.g. CLAUDE_BIN=claude-next hookshot serve
 env:
   CLAUDE_BIN: claude
@@ -276,6 +281,11 @@ repo: {repo}
 #   if:
 #     - "${{{{ sender.login | eq your-github-username }}}}"
 
+# Post a comment on the issue/PR when a command fails (non-zero exit, timeout,
+# or exception) — otherwise a failure is visible only via the `failed`
+# reaction (if configured) and hookshot.log.
+notify_on_failure: true
+
 # Override at run time, e.g. CLAUDE_BIN=claude-next hookshot serve
 env:
   CLAUDE_BIN: claude
@@ -374,6 +384,11 @@ repo: {repo}
 # hooks to one person by adding a filter to their `if:` list, e.g.:
 #   if:
 #     - "${{{{ sender.login | eq your-github-username }}}}"
+
+# Post a comment on the issue/PR when a command fails (non-zero exit, timeout,
+# or exception) — otherwise a failure is visible only via the `failed`
+# reaction (if configured) and hookshot.log.
+notify_on_failure: true
 
 # Override at run time, e.g. CLAUDE_BIN=claude-next hookshot serve
 env:

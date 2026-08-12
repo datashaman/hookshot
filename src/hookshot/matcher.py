@@ -83,6 +83,7 @@ def match_and_run(
     worktrees: dict | None = None,
     default_timeout: int | None = None,
     env: dict[str, str] | None = None,
+    notify_on_failure: bool = False,
 ) -> int:
     """Match a GitHub event against configured hooks and run matching commands.
 
@@ -126,6 +127,7 @@ def match_and_run(
                     cwd=cwd,
                     default_timeout=default_timeout,
                     env=env,
+                    notify_on_failure=notify_on_failure,
                 ):
                     executed += 1
 

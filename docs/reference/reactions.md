@@ -33,6 +33,10 @@ Implementation resolves an issue, PR, issue comment, or PR review from the paylo
 
 `gh` must be installed and authenticated when reactions are used.
 
+## Failure comments vs. reactions
+
+Reactions are advisory-only and silent about *why* — a bare 😕 doesn't say whether the command exited non-zero, timed out, or raised. For an explanation posted to the issue/PR itself, set `notify_on_failure: true` at the top level (see [Configuration](configuration.md)); it works independently of `reactions` and can be enabled with or without it.
+
 ## See also
 
 - [Configuration](configuration.md)

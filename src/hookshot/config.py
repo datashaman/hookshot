@@ -367,6 +367,10 @@ def validate_config(config: dict) -> list[str]:
                 if normalized == "/" or ".." in Path(wt_path).parts:
                     errors.append(f"worktrees.path: unsafe path '{wt_path}'")
 
+    # Validate notify_on_failure
+    if "notify_on_failure" in config and not isinstance(config["notify_on_failure"], bool):
+        errors.append("'notify_on_failure' must be a boolean")
+
     # Validate reactions
     reactions = config.get("reactions")
     if reactions is not None:

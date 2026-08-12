@@ -25,6 +25,7 @@ This mirrors PHPUnit's `phpunit.xml` / `phpunit.xml.dist` convention: commit `ho
 | `timeout` | int | Global default command timeout (seconds). Must be positive integer if set. Per-hook overrides. |
 | `worktrees` | mapping | Optional; see [Worktrees](worktrees.md). |
 | `reactions` | mapping | Optional; see [Reactions](reactions.md). |
+| `notify_on_failure` | bool | Optional, default `false`. When `true`, a non-zero exit, timeout, or exception posts a comment on the triggering issue/PR explaining what happened, in addition to the `failed` reaction (if configured). Without it, a failure is visible only via that reaction and `hookshot.log`. |
 | `agents` | mapping | Optional; reusable agent definitions. Each key is an agent name mapping to `command` (required) and `stdin` (optional base prompt). Hooks reference agents with `agent: <name>`. See [Agents](#agents) below. |
 | `env` | mapping | Optional; declares default environment variables available as `${{ env.NAME }}` in `command`/`stdin`/`if`/`load`/`store`/`clear`. Values are strings (non-scalars rejected) and support `${VAR}` expansion. A variable exported in the real process environment always overrides its declared default. See [Environment expansion](#environment-expansion). |
 

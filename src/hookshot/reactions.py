@@ -1,4 +1,4 @@
-"""GitHub emoji reactions to signal agent status."""
+"""GitHub status signals for agent runs: emoji reactions and failure comments."""
 
 from __future__ import annotations
 
@@ -79,6 +79,57 @@ def add_reaction(payload: dict, content: str) -> bool:
         return True
     except Exception as e:
         log.warning("Failed to add reaction %s: %s", content, e)
+        return False
+
+
+def _comment_endpoint(payload: dict) -> str | None:
+    """Determine the issue-comments API endpoint for the object a payload targets.
+
+    Issues and PRs share the same comments endpoint (a PR is an issue under
+    the hood), so unlike reactions there's no separate PR-review case — a
+    review-triggered failure is reported on the PR itself.
+    """
+    repo = payload.get("repository", {}).get("full_name", "")
+    if not repo:
+        return None
+
+    if "issue" in payload:
+        number = payload["issue"].get("number")
+        if number:
+            return f"/repos/{repo}/issues/{number}/comments"
+
+    if "pull_request" in payload:
+        number = payload["pull_request"].get("number")
+        if number:
+            return f"/repos/{repo}/issues/{number}/comments"
+
+    return None
+
+
+def post_comment(payload: dict, body: str) -> bool:
+    """Post a comment to the issue or PR a payload targets.
+
+    Returns True if the comment was posted successfully.
+    """
+    endpoint = _comment_endpoint(payload)
+    if endpoint is None:
+        log.debug("No commentable object found in payload")
+        return False
+
+    try:
+        proc = subprocess.run(
+            ["gh", "api", "-X", "POST", endpoint, "-f", f"body={body}"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if proc.returncode != 0:
+            log.warning("Failed to post comment: %s", proc.stderr.rstrip())
+            return False
+        log.info("Posted comment")
+        return True
+    except Exception as e:
+        log.warning("Failed to post comment: %s", e)
         return False
 
 

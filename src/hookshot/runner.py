@@ -10,7 +10,7 @@ import threading
 from typing import TYPE_CHECKING
 
 from .config import DEFAULT_COMMAND_TIMEOUT
-from .reactions import add_reaction, remove_reaction
+from .reactions import add_reaction, post_comment, remove_reaction
 
 if TYPE_CHECKING:
     from .state import StateStore
@@ -302,6 +302,7 @@ def run_command(
     cwd: str | None = None,
     default_timeout: int | None = None,
     env: dict[str, str] | None = None,
+    notify_on_failure: bool = False,
 ) -> bool:
     """Expand templates in a command config and execute it.
 
@@ -313,6 +314,11 @@ def run_command(
     env: merged config/process environment (see
         :func:`hookshot.config.resolved_env`), used both to resolve
         ``${{ env.X }}`` placeholders and as the child process's environment.
+
+    notify_on_failure: when True, post a comment on the triggering issue/PR
+        explaining a non-zero exit, timeout, or exception — otherwise a
+        failure is visible only via the ``failed`` reaction (if configured)
+        and the log.
 
     Set ``stream: true`` on the command to use ``Popen`` and mirror stdout/stderr
     line-by-line to the terminal while writing structured JSON lines to the log
@@ -398,6 +404,7 @@ def run_command(
         if returncode != 0:
             log.error("  Command failed (exit code %d): %s", returncode, command)
             _finish_reactions(payload, reactions, success=False)
+            _notify_failure(payload, notify_on_failure, f"exited with code {returncode}", command)
             return True
 
         # Store/clear only on success (exit code 0)
@@ -418,11 +425,25 @@ def run_command(
     except subprocess.TimeoutExpired:
         log.error("  Command timed out after %ds: %s", timeout_sec, command)
         _finish_reactions(payload, reactions, success=False)
+        _notify_failure(payload, notify_on_failure, f"timed out after {timeout_sec}s", command)
         return False
     except Exception as e:
         log.error("  Command failed: %s", e)
         _finish_reactions(payload, reactions, success=False)
+        _notify_failure(payload, notify_on_failure, f"raised an exception: {e}", command)
         return False
+
+
+def _notify_failure(payload: dict, enabled: bool, reason: str, command: str) -> None:
+    """Post a comment on the triggering issue/PR explaining a command failure."""
+    if not enabled:
+        return
+    body = (
+        f"⚠️ **hookshot**: automated command {reason}.\n\n"
+        f"```\n{command}\n```\n\n"
+        "Check `hookshot.log` for details."
+    )
+    post_comment(payload, body)
 
 
 def _finish_reactions(

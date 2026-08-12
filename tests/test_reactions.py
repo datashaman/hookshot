@@ -1,11 +1,14 @@
 """Tests for emoji reactions."""
 
 import io
+import subprocess
 from unittest.mock import patch, MagicMock
 
 from hookshot.reactions import (
+    _comment_endpoint,
     _reaction_endpoint,
     add_reaction,
+    post_comment,
     remove_reaction,
 )
 from hookshot.runner import run_command, _finish_reactions, resolve_command_timeout
@@ -63,6 +66,61 @@ def test_endpoint_returns_none_for_empty_payload():
 def test_endpoint_returns_none_without_repo():
     payload = {"issue": {"number": 1}}
     assert _reaction_endpoint(payload) is None
+
+
+# --- _comment_endpoint tests ---
+
+def test_comment_endpoint_for_issue():
+    payload = {"repository": {"full_name": "owner/repo"}, "issue": {"number": 7}}
+    assert _comment_endpoint(payload) == "/repos/owner/repo/issues/7/comments"
+
+
+def test_comment_endpoint_for_pull_request():
+    payload = {"repository": {"full_name": "owner/repo"}, "pull_request": {"number": 3}}
+    assert _comment_endpoint(payload) == "/repos/owner/repo/issues/3/comments"
+
+
+def test_comment_endpoint_for_pr_review_uses_pull_request_number():
+    """A review-triggered failure reports on the PR itself, not the review."""
+    payload = {
+        "repository": {"full_name": "owner/repo"},
+        "review": {"id": 99},
+        "pull_request": {"number": 5},
+    }
+    assert _comment_endpoint(payload) == "/repos/owner/repo/issues/5/comments"
+
+
+def test_comment_endpoint_returns_none_for_empty_payload():
+    assert _comment_endpoint({}) is None
+
+
+def test_comment_endpoint_returns_none_without_repo():
+    assert _comment_endpoint({"issue": {"number": 1}}) is None
+
+
+# --- post_comment tests ---
+
+@patch("hookshot.reactions.subprocess.run")
+def test_post_comment_success(mock_subprocess):
+    mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    payload = {"repository": {"full_name": "owner/repo"}, "issue": {"number": 1}}
+
+    assert post_comment(payload, "something broke") is True
+    args = mock_subprocess.call_args[0][0]
+    assert args[:3] == ["gh", "api", "-X"]
+    assert "/repos/owner/repo/issues/1/comments" in args
+
+
+@patch("hookshot.reactions.subprocess.run")
+def test_post_comment_failure(mock_subprocess):
+    mock_subprocess.return_value = MagicMock(returncode=1, stdout="", stderr="nope")
+    payload = {"repository": {"full_name": "owner/repo"}, "issue": {"number": 1}}
+
+    assert post_comment(payload, "something broke") is False
+
+
+def test_post_comment_no_target():
+    assert post_comment({}, "something broke") is False
 
 
 # --- add_reaction tests ---
@@ -202,6 +260,57 @@ def test_run_command_no_reactions_when_not_configured(mock_subprocess, mock_add,
     mock_remove.assert_not_called()
 
 
+# --- run_command notify_on_failure ---
+
+@patch("hookshot.runner.post_comment")
+@patch("hookshot.runner.subprocess.run")
+def test_run_command_notifies_on_failure_when_enabled(mock_subprocess, mock_post_comment):
+    mock_subprocess.return_value = MagicMock(returncode=1, stdout="", stderr="boom")
+    payload = {"repository": {"full_name": "owner/repo"}, "issue": {"number": 1}}
+
+    run_command({"command": "false"}, payload, notify_on_failure=True)
+
+    mock_post_comment.assert_called_once()
+    posted_payload, posted_body = mock_post_comment.call_args[0]
+    assert posted_payload is payload
+    assert "exited with code 1" in posted_body
+
+
+@patch("hookshot.runner.post_comment")
+@patch("hookshot.runner.subprocess.run")
+def test_run_command_does_not_notify_when_disabled(mock_subprocess, mock_post_comment):
+    mock_subprocess.return_value = MagicMock(returncode=1, stdout="", stderr="boom")
+    payload = {"repository": {"full_name": "owner/repo"}, "issue": {"number": 1}}
+
+    run_command({"command": "false"}, payload)
+
+    mock_post_comment.assert_not_called()
+
+
+@patch("hookshot.runner.post_comment")
+@patch("hookshot.runner.subprocess.run")
+def test_run_command_does_not_notify_on_success(mock_subprocess, mock_post_comment):
+    mock_subprocess.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+    payload = {"repository": {"full_name": "owner/repo"}, "issue": {"number": 1}}
+
+    run_command({"command": "echo hi"}, payload, notify_on_failure=True)
+
+    mock_post_comment.assert_not_called()
+
+
+@patch("hookshot.runner.post_comment")
+@patch("hookshot.runner.subprocess.run")
+def test_run_command_notifies_on_timeout(mock_subprocess, mock_post_comment):
+    mock_subprocess.side_effect = subprocess.TimeoutExpired(cmd="sleep 999", timeout=1)
+    payload = {"repository": {"full_name": "owner/repo"}, "issue": {"number": 1}}
+
+    run_command({"command": "sleep 999", "timeout": 1}, payload, notify_on_failure=True)
+
+    mock_post_comment.assert_called_once()
+    _, posted_body = mock_post_comment.call_args[0]
+    assert "timed out after 1s" in posted_body
+
+
 # --- validate_config reactions ---
 
 def test_validate_reactions_valid():
@@ -261,6 +370,18 @@ def test_validate_timeout_global_invalid():
 def test_validate_timeout_global_not_bool():
     errors = validate_config({"hooks": {}, "timeout": True})
     assert any("timeout" in e for e in errors)
+
+
+# --- validate_config notify_on_failure ---
+
+def test_validate_notify_on_failure_valid():
+    errors = validate_config({"hooks": {}, "notify_on_failure": True})
+    assert errors == []
+
+
+def test_validate_notify_on_failure_not_bool():
+    errors = validate_config({"hooks": {}, "notify_on_failure": "yes"})
+    assert any("notify_on_failure" in e for e in errors)
 
 
 def test_validate_timeout_per_command_invalid():
