@@ -147,7 +147,14 @@ def match_and_run(
                 except RuntimeError:
                     log.error("  Skipping command %d/%d (worktree creation failed): %s", i, len(commands), cmd.get("command", "?"))
                     continue
-                log.info("  Running command %d/%d: %s", i, len(commands), cmd.get("command", "?"))
+                # Don't log the command text here — its "if:" conditions
+                # haven't been checked yet, and a command whose own text
+                # happens to describe a dramatic outcome (e.g. an escalation
+                # comment's --body) reads like a status report on a quick
+                # skim even when it's about to be skipped. run_command logs
+                # the actual text once it knows whether it's running or not
+                # ("Executing: ..." / "Skipped (condition false: ...): ...").
+                log.info("  Checking command %d/%d", i, len(commands))
                 if run_command(
                     cmd,
                     payload,
