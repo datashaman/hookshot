@@ -11,6 +11,7 @@ from .config import (
     LOCAL_CONFIG_PATH,
     get_events,
     load_config,
+    load_dotenv,
     resolved_env,
     unresolved_env_refs,
     validate_config,
@@ -60,6 +61,13 @@ def main():
         action="store_true",
         help="Enable debug logging",
     )
+    parser.add_argument(
+        "--env-file",
+        type=Path,
+        default=None,
+        help="Path to a .env file to load (default: ./.env if present). "
+             "Vars already exported in the process environment take precedence.",
+    )
 
     sub = parser.add_subparsers(dest="command")
 
@@ -104,6 +112,11 @@ def main():
     state_clear_parser.add_argument("pattern", help="Key or pattern (supports * suffix)")
 
     args = parser.parse_args()
+
+    if args.env_file is not None:
+        load_dotenv(args.env_file)
+    else:
+        load_dotenv()
 
     log_level = logging.DEBUG if args.verbose else logging.INFO
     log_format = "%(asctime)s %(levelname)s %(message)s"

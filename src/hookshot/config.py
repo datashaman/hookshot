@@ -16,9 +16,40 @@ LOCAL_CONFIG_PATH = Path("hookshot.yml")
 DIST_CONFIG_PATH = Path("hookshot.dist.yml")
 DEFAULT_CONFIG_PATH = _CONFIG_DIR / "hooks.yml"
 DEFAULT_STATE_PATH = _DATA_DIR / "state.json"
+DOTENV_PATH = Path(".env")
 
 # Fallback when neither global nor per-command timeout is set (seconds)
 DEFAULT_COMMAND_TIMEOUT = 300
+
+
+def load_dotenv(path: Path = DOTENV_PATH) -> None:
+    """Load KEY=VALUE pairs from a .env file into the process environment.
+
+    Mirrors common dotenv tooling: blank lines and '#' comments are skipped,
+    a leading 'export ' is stripped, and values may be wrapped in matching
+    single or double quotes. A variable already set in the process
+    environment is left untouched — .env only supplies defaults, so
+    `CLAUDE_BIN=... hookshot serve` still overrides it. No-op if the file
+    doesn't exist.
+    """
+    if not path.exists():
+        return
+
+    for raw_line in path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):]
+
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+
+        if key and key not in os.environ:
+            os.environ[key] = value
 
 
 def _is_positive_int(value: object) -> bool:

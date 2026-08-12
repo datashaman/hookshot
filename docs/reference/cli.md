@@ -1,7 +1,7 @@
 # Reference: CLI
 
 ```text
-hookshot [-h] [-c PATH] [-v] <command> ...
+hookshot [-h] [-c PATH] [-v] [--env-file PATH] <command> ...
 ```
 
 ## Global options
@@ -10,6 +10,7 @@ hookshot [-h] [-c PATH] [-v] <command> ...
 |--------|---------|
 | `-c`, `--config` | Path to YAML config. If omitted, resolved in order: `./hookshot.yml`, `./hookshot.dist.yml`, `~/.config/hookshot/hooks.yml`. See [Configuration](configuration.md#file-resolution). |
 | `-v`, `--verbose` | Debug logging to stderr and `hookshot.log`. |
+| `--env-file` | Path to a `.env` file to load before parsing config. Default: `./.env` if present. Vars already exported in the process environment always take precedence over the file. See [Configuration](configuration.md#env-files). |
 
 ## Subcommands
 

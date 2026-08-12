@@ -84,6 +84,15 @@ There are two independent mechanisms, kept on disjoint fields so they never coll
 
 `hookshot validate` warns (but does not fail) about any `${{ env.NAME }}` reference that is neither declared in `env:` nor set in the process environment — validation must not depend on the ambient environment to pass/fail.
 
+## `.env` files
+
+Before loading the config, Hookshot loads `./.env` (or `--env-file PATH`) into the process environment via `hookshot.config.load_dotenv`. This is what makes `CLAUDE_BIN=claude-beta` in a local `.env` reach both mechanisms above (`${VAR}` and `${{ env.NAME }}`) without exporting it in your shell first.
+
+- Format: `KEY=VALUE` per line; blank lines and `#` comments are skipped; a leading `export ` is stripped; values may be wrapped in matching single or double quotes.
+- **A variable already exported in the process environment is left untouched** — `.env` only supplies a default, so `CLAUDE_BIN=claude-next hookshot serve` still overrides whatever `.env` says.
+- No-op if the file doesn't exist — `.env` is optional.
+- This is separate from the config's own `env:` block (see above); `.env` populates `os.environ` itself, so declared `env:` defaults and `${VAR}` expansion see it too.
+
 ## Validation (`hookshot validate`)
 
 Reports: bad `repo` format; invalid `timeout`; hook lists missing `command`; malformed `store` / `load` / `clear`; unsafe `worktrees.path`; invalid `reactions` keys or emoji names; undefined agent references; hooks with both `agent` and `command`; invalid agent definitions; invalid `env` keys/values. Also **warns** (non-fatal) about `${{ env.NAME }}` references with no declared default and no matching process environment variable.

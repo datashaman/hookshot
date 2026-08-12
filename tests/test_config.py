@@ -1,5 +1,6 @@
 """Tests for config loading — agents resolution and validation."""
 
+import os
 from pathlib import Path
 
 import yaml
@@ -9,6 +10,7 @@ from hookshot.config import (
     _resolve_agents,
     find_config,
     load_config,
+    load_dotenv,
     resolved_env,
     unresolved_env_refs,
     validate_config,
@@ -198,6 +200,47 @@ def test_find_config_falls_back_to_dist(tmp_path, monkeypatch):
 def test_find_config_falls_back_to_global_default(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert find_config() == DEFAULT_CONFIG_PATH
+
+
+# --- load_dotenv ---
+
+
+def test_load_dotenv_sets_unset_vars(tmp_path, monkeypatch):
+    monkeypatch.delenv("CLAUDE_BIN", raising=False)
+    path = tmp_path / ".env"
+    path.write_text("CLAUDE_BIN=claude-beta\n")
+    load_dotenv(path)
+    assert os.environ["CLAUDE_BIN"] == "claude-beta"
+
+
+def test_load_dotenv_does_not_override_existing_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_BIN", "claude-next")
+    path = tmp_path / ".env"
+    path.write_text("CLAUDE_BIN=claude-beta\n")
+    load_dotenv(path)
+    assert os.environ["CLAUDE_BIN"] == "claude-next"
+
+
+def test_load_dotenv_skips_comments_and_blank_lines(tmp_path, monkeypatch):
+    monkeypatch.delenv("FOO", raising=False)
+    path = tmp_path / ".env"
+    path.write_text("# a comment\n\nFOO=bar\n")
+    load_dotenv(path)
+    assert os.environ["FOO"] == "bar"
+
+
+def test_load_dotenv_strips_export_prefix_and_quotes(tmp_path, monkeypatch):
+    monkeypatch.delenv("FOO", raising=False)
+    path = tmp_path / ".env"
+    path.write_text('export FOO="bar baz"\n')
+    load_dotenv(path)
+    assert os.environ["FOO"] == "bar baz"
+
+
+def test_load_dotenv_noop_when_file_missing(tmp_path, monkeypatch):
+    monkeypatch.delenv("FOO", raising=False)
+    load_dotenv(tmp_path / ".env")
+    assert "FOO" not in os.environ
 
 
 # --- env block: load_config normalization ---
