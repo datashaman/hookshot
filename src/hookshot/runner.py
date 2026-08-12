@@ -391,7 +391,16 @@ def run_command(
     if cwd:
         log.info("  cwd: %s", cwd)
 
-    # Add "working" reaction before execution
+    # Clear any done/failed reaction left over from a previous command on
+    # this same PR/issue (reviews aren't reactable, so every command in a
+    # review loop reacts on the PR itself — without this, "done" from one
+    # turn sits next to "working" from the next, looking like conflicting
+    # status) before adding "working" for this run.
+    if reactions:
+        for stale in (reactions.get("done"), reactions.get("failed")):
+            if stale:
+                remove_reaction(payload, stale)
+
     working_reaction = reactions.get("working") if reactions else None
     if working_reaction:
         add_reaction(payload, working_reaction)

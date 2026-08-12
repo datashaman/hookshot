@@ -253,6 +253,24 @@ def test_run_command_adds_failed_reaction(mock_subprocess, mock_add, mock_remove
 @patch("hookshot.runner.remove_reaction")
 @patch("hookshot.runner.add_reaction")
 @patch("hookshot.runner.subprocess.run")
+def test_run_command_clears_stale_done_and_failed_before_working(mock_subprocess, mock_add, mock_remove):
+    """Reviews aren't reactable, so every command in a review loop reacts
+    on the PR itself -- a "done"/"failed" reaction from a prior turn must
+    be cleared before "working" goes up, or the PR shows both at once."""
+    mock_subprocess.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+    payload = {"repository": {"full_name": "owner/repo"}, "issue": {"number": 1}}
+    reactions = {"working": "eyes", "done": "heart", "failed": "confused"}
+
+    run_command({"command": "echo hi"}, payload, reactions=reactions)
+
+    remove_calls = [c.args[1] for c in mock_remove.call_args_list]
+    assert remove_calls.index("heart") < remove_calls.index("eyes")
+    assert remove_calls.index("confused") < remove_calls.index("eyes")
+
+
+@patch("hookshot.runner.remove_reaction")
+@patch("hookshot.runner.add_reaction")
+@patch("hookshot.runner.subprocess.run")
 def test_run_command_no_reactions_when_not_configured(mock_subprocess, mock_add, mock_remove):
     mock_subprocess.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
     payload = {"repository": {"full_name": "owner/repo"}, "issue": {"number": 1}}
