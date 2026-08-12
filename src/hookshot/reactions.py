@@ -28,14 +28,9 @@ def _reaction_endpoint(payload: dict) -> tuple[str, str] | None:
         if comment_id:
             return f"/repos/{repo}/issues/comments/{comment_id}/reactions", str(comment_id)
 
-    # PR review
-    if "review" in payload and "pull_request" in payload:
-        review_id = payload["review"].get("id")
-        pr_number = payload["pull_request"].get("number")
-        if review_id and pr_number:
-            return f"/repos/{repo}/pulls/{pr_number}/reviews/{review_id}/reactions", str(review_id)
-
-    # Issue or PR (top-level)
+    # Issue or PR (top-level) — also covers PR-review-triggered payloads:
+    # GitHub's REST API has no reactions endpoint for a whole PR review
+    # (only for individual review *comments*), so react on the PR itself.
     if "issue" in payload:
         number = payload["issue"].get("number")
         if number:

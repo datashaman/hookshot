@@ -24,7 +24,7 @@ worktrees:
 
 reactions:
   working: eyes
-  done: rocket
+  done: heart
   failed: confused
 
 agents:

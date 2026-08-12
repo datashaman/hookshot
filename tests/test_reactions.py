@@ -29,14 +29,17 @@ def test_endpoint_for_issue_comment():
 
 
 def test_endpoint_for_pr_review():
+    """GitHub has no reactions endpoint for a whole PR review, so this
+    reacts on the PR itself (the review's own /reviews/{id}/reactions
+    endpoint returns 404 in practice)."""
     payload = {
         "repository": {"full_name": "owner/repo"},
         "review": {"id": 99},
         "pull_request": {"number": 5},
     }
     endpoint, obj_id = _reaction_endpoint(payload)
-    assert endpoint == "/repos/owner/repo/pulls/5/reviews/99/reactions"
-    assert obj_id == "99"
+    assert endpoint == "/repos/owner/repo/issues/5/reactions"
+    assert obj_id == "5"
 
 
 def test_endpoint_for_issue():
