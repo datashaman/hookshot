@@ -295,6 +295,11 @@ def test_run_command_notifies_on_failure_when_enabled(mock_subprocess, mock_post
     posted_payload, posted_body = mock_post_comment.call_args[0]
     assert posted_payload is payload
     assert "exited with code 1" in posted_body
+    # Without the marker this comment is indistinguishable from real human
+    # feedback to any hook guarded only by not_contains hookshot:agent — a
+    # timeout notice re-triggered the implementer on an already-approved PR
+    # in production before this was added (see runner.py _notify_failure).
+    assert "<!-- hookshot:agent -->" in posted_body
 
 
 @patch("hookshot.runner.post_comment")
@@ -330,6 +335,7 @@ def test_run_command_notifies_on_timeout(mock_subprocess, mock_post_comment):
     mock_post_comment.assert_called_once()
     _, posted_body = mock_post_comment.call_args[0]
     assert "timed out after 1s" in posted_body
+    assert "<!-- hookshot:agent -->" in posted_body
 
 
 # --- validate_config reactions ---

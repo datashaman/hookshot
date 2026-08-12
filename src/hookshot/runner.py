@@ -479,7 +479,8 @@ def _notify_failure(payload: dict, enabled: bool, reason: str, command: str) -> 
     body = (
         f"⚠️ **hookshot**: automated command {reason}.\n\n"
         f"```\n{command}\n```\n\n"
-        "Check `hookshot.log` for details."
+        "Check `hookshot.log` for details.\n\n"
+        "<!-- hookshot:agent -->"
     )
     post_comment(payload, body)
 
