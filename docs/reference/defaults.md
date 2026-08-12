@@ -4,7 +4,7 @@ Values enforced or assumed by Hookshot unless overridden in config or CLI.
 
 | Item | Default | Config / code |
 |------|---------|----------------|
-| Config file (first found) | `./hookshot.yml` | Then `~/.config/hookshot/hooks.yml` via platformdirs |
+| Config file (first found) | `--config` flag | Then `./hookshot.yml`, then `./hookshot.dist.yml`, then `~/.config/hookshot/hooks.yml` via platformdirs |
 | Listen host | `0.0.0.0` | `listen.host` |
 | Listen port | `9876` | `listen.port` |
 | State file | User data dir `hookshot/state.json` | `state_file` |

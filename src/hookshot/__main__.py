@@ -53,7 +53,7 @@ def main():
         "-c", "--config",
         type=Path,
         default=None,
-        help="Path to config (default: ./hookshot.yml, then ~/.config/hookshot/hooks.yml)",
+        help="Path to config (default: ./hookshot.yml, then ./hookshot.dist.yml, then ~/.config/hookshot/hooks.yml)",
     )
     parser.add_argument(
         "-v", "--verbose",

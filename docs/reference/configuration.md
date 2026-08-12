@@ -2,6 +2,17 @@
 
 Exhaustive description of supported top-level and per-hook keys as implemented in `hookshot.config` and consumers. Unsupported keys are ignored unless validation explicitly checks them.
 
+## File resolution
+
+When `-c`/`--config` isn't given, Hookshot resolves the config file in this order (first match wins):
+
+1. `--config PATH` / `-c PATH` — explicit path on the command line.
+2. `./hookshot.yml` — local override, typically gitignored per-developer.
+3. `./hookshot.dist.yml` — committed team baseline.
+4. `~/.config/hookshot/hooks.yml` (via platformdirs) — global fallback.
+
+This mirrors PHPUnit's `phpunit.xml` / `phpunit.xml.dist` convention: commit `hookshot.dist.yml` as the shared config for the team, and let individual developers override it locally with an untracked `hookshot.yml` without needing to modify the shared file or pass `--config` every time.
+
 ## Top-level keys
 
 | Key | Type | Description |

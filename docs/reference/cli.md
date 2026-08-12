@@ -8,7 +8,7 @@ hookshot [-h] [-c PATH] [-v] <command> ...
 
 | Option | Meaning |
 |--------|---------|
-| `-c`, `--config` | Path to YAML config. Default: `./hookshot.yml` if present, else `~/.config/hookshot/hooks.yml`. |
+| `-c`, `--config` | Path to YAML config. If omitted, resolved in order: `./hookshot.yml`, `./hookshot.dist.yml`, `~/.config/hookshot/hooks.yml`. See [Configuration](configuration.md#file-resolution). |
 | `-v`, `--verbose` | Debug logging to stderr and `hookshot.log`. |
 
 ## Subcommands

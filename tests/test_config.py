@@ -1,9 +1,13 @@
 """Tests for config loading — agents resolution and validation."""
 
+from pathlib import Path
+
 import yaml
 
 from hookshot.config import (
+    DEFAULT_CONFIG_PATH,
     _resolve_agents,
+    find_config,
     load_config,
     resolved_env,
     unresolved_env_refs,
@@ -173,6 +177,27 @@ def test_validate_agents_entry_not_a_dict():
     }
     errors = validate_config(config)
     assert any("must be a mapping" in e for e in errors)
+
+
+# --- find_config: resolution order ---
+
+
+def test_find_config_prefers_local_over_dist(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "hookshot.yml").write_text("hooks: {}\n")
+    (tmp_path / "hookshot.dist.yml").write_text("hooks: {}\n")
+    assert find_config() == Path("hookshot.yml")
+
+
+def test_find_config_falls_back_to_dist(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "hookshot.dist.yml").write_text("hooks: {}\n")
+    assert find_config() == Path("hookshot.dist.yml")
+
+
+def test_find_config_falls_back_to_global_default(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert find_config() == DEFAULT_CONFIG_PATH
 
 
 # --- env block: load_config normalization ---

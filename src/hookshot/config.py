@@ -13,6 +13,7 @@ _CONFIG_DIR = Path(platformdirs.user_config_dir("hookshot"))
 _DATA_DIR = Path(platformdirs.user_data_dir("hookshot"))
 
 LOCAL_CONFIG_PATH = Path("hookshot.yml")
+DIST_CONFIG_PATH = Path("hookshot.dist.yml")
 DEFAULT_CONFIG_PATH = _CONFIG_DIR / "hooks.yml"
 DEFAULT_STATE_PATH = _DATA_DIR / "state.json"
 
@@ -35,9 +36,15 @@ def expand_env(value: str) -> str:
 
 
 def find_config() -> Path:
-    """Find the config file: ./hookshot.yml first, then global default."""
+    """Find the config file: ./hookshot.yml, then ./hookshot.dist.yml, then global default.
+
+    Mirrors phpunit.xml / phpunit.xml.dist: a team commits hookshot.dist.yml as the
+    shared baseline, and a local hookshot.yml (typically gitignored) overrides it.
+    """
     if LOCAL_CONFIG_PATH.exists():
         return LOCAL_CONFIG_PATH
+    if DIST_CONFIG_PATH.exists():
+        return DIST_CONFIG_PATH
     return DEFAULT_CONFIG_PATH
 
 
